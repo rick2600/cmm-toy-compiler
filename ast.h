@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-
+#include "token.h"
 
 typedef enum {
     NODE_ROOT,
@@ -30,6 +30,7 @@ typedef enum {
 typedef struct ast_node {
     ast_node_type_t type;
     struct ast_node* next;
+    uint32_t line;
 
     union {
         uint32_t number;
@@ -133,23 +134,23 @@ ast_node_t* create_ast_node(ast_node_type_t type);
 ast_node_list_t* create_ast_node_list();
 void add_stmt(ast_node_t* parent, ast_node_t* stmt);
 void add_param(ast_node_t* parent, ast_node_t* child);
-void add_paramdecl(ast_node_t* parent, ast_node_t* child) ;
-ast_node_t* create_ast_node_number(int number);
-ast_node_t* create_ast_node_ident(char* ident);
-ast_node_t* create_ast_node_string(char* string);
-ast_node_t* create_ast_node_char(char* string);
-ast_node_t* create_ast_node_unary(op_t op, ast_node_t* expr);
-ast_node_t* create_ast_node_binary(op_t op, ast_node_t* left, ast_node_t* right);
+void add_paramdecl(ast_node_t* parent, ast_node_t* child);
+ast_node_t* create_ast_node_number(token_t* token);
+ast_node_t* create_ast_node_ident(token_t* token);
+ast_node_t* create_ast_node_string(token_t* token);
+ast_node_t* create_ast_node_char(token_t* token);
+ast_node_t* create_ast_node_unary(token_t* token, ast_node_t* expr);
+ast_node_t* create_ast_node_binary(token_t* token, ast_node_t* left, ast_node_t* right);
 ast_node_t* create_ast_node_funccall(ast_node_t* ident);
 ast_node_t* create_ast_node_param_list();
 ast_node_t* create_ast_node_stmtlist();
-ast_node_t* create_ast_node_if(ast_node_t *cond);
-ast_node_t* create_ast_node_while(ast_node_t *cond);
+ast_node_t* create_ast_node_if(token_t* token, ast_node_t *cond);
+ast_node_t* create_ast_node_while(token_t* token, ast_node_t *cond);
 ast_node_t* create_ast_node_assign(ast_node_t* left, ast_node_t* right);
 ast_node_t* create_ast_node_arrayaccess(ast_node_t* ident, ast_node_t* expr);
 ast_node_t* create_ast_node_root();
-ast_node_t* create_ast_node_return(ast_node_t *expr);
-ast_node_t* create_ast_node_for(ast_node_t *init, ast_node_t *cond, ast_node_t *incr);
+ast_node_t* create_ast_node_return(token_t* token, ast_node_t *expr);
+ast_node_t* create_ast_node_for(token_t* token, ast_node_t *init, ast_node_t *cond, ast_node_t *incr);
 ast_node_t* create_ast_node_paramdecl_list();
 ast_node_t* create_ast_node_paramdecl(decl_type_t type, ast_node_t* ident, bool is_array);
 ast_node_t* create_ast_node_vardecl(decl_type_t type, ast_node_t* ident, bool is_array, int size);

@@ -173,34 +173,16 @@ static ast_node_t* parse_prog() {
     return node;
 }
 
-static op_t tokentype_to_op(token_type_t type) {
-    if (type == TOKEN_PLUS)       return OP_PLUS;
-    else if (type == TOKEN_MINUS) return OP_MINUS;
-    else if (type == TOKEN_SLASH) return OP_DIV;
-    else if (type == TOKEN_STAR)  return OP_MULT;
-    else if (type == TOKEN_OR)    return OP_OR;
-    else if (type == TOKEN_AND)   return OP_AND;
-    else if (type == TOKEN_BANG)  return OP_NOT;
-    else if (type == TOKEN_EQUAL_EQUAL)     return OP_EQ;
-    else if (type == TOKEN_BANG_EQUAL)      return OP_NEQ;
-    else if (type == TOKEN_LESS_EQUAL)      return OP_LE;
-    else if (type == TOKEN_LESS)            return OP_LT;
-    else if (type == TOKEN_GREATER_EQUAL)   return OP_GE;
-    else if (type == TOKEN_GREATER)         return OP_GT;
-}
-
 static ast_node_t* parse_factor() {
     ast_node_t* node = NULL;
 
     if (match(TOKEN_NUMBER)) {
         token_t* token = consume();
-        char *str = lexeme(token);
-        node = create_ast_node_number(atoi(str));
-        free(str);
+        node = create_ast_node_number(token);
 
     } else if (match(TOKEN_IDENTIFIER)) {
         token_t* token = consume();
-        ast_node_t* ident = create_ast_node_ident(lexeme(token));
+        ast_node_t* ident = create_ast_node_ident(token);
 
         if (match(TOKEN_LEFT_PAREN)) {
             consume();
@@ -224,18 +206,17 @@ static ast_node_t* parse_factor() {
 
     } else if (match(TOKEN_STRING)) {
         token_t* token = consume();
-        node = create_ast_node_string(lexeme(token));
+        node = create_ast_node_string(token);
     } else if (match(TOKEN_CHAR)) {
         token_t* token = consume();
-        node = create_ast_node_char(lexeme(token));
+        node = create_ast_node_char(token);
     } else if (match(TOKEN_LEFT_PAREN)) {
         consume();
         node = parse_expr();
         expect(TOKEN_RIGHT_PAREN, "expected ')'");
     } else if (match(TOKEN_BANG)) {
         token_t* token = consume();
-        op_t op = tokentype_to_op(token->type);
-        node = create_ast_node_unary(op, parse_factor());
+        node = create_ast_node_unary(token, parse_factor());
     }
     return node;
 }
@@ -245,8 +226,7 @@ static ast_node_t* parse_term() {
 
     while (match_any(3, TOKEN_STAR, TOKEN_SLASH, TOKEN_AND)) {
         token_t* token = consume();
-        op_t op = tokentype_to_op(token->type);
-        node = create_ast_node_binary(op, node, parse_factor());
+        node = create_ast_node_binary(token, node, parse_factor());
     }
     return node;
 }
@@ -258,16 +238,14 @@ static ast_node_t* parse_expr_simp() {
         consume();
     } else if  (match(TOKEN_MINUS)) {
         token_t* token = consume();
-        op_t op = tokentype_to_op(token->type);
-        node = create_ast_node_unary(op, parse_term());
+        node = create_ast_node_unary(token, parse_term());
     } else {
         node = parse_term();
     }
 
     while (match_any(3, TOKEN_PLUS, TOKEN_MINUS, TOKEN_OR)) {
         token_t* token = consume();
-        op_t op = tokentype_to_op(token->type);
-        node = create_ast_node_binary(op, node, parse_term());
+        node = create_ast_node_binary(token, node, parse_term());
     }
 
     return node;
@@ -280,15 +258,14 @@ static ast_node_t* parse_expr() {
           || match_any(3, TOKEN_LESS, TOKEN_GREATER_EQUAL, TOKEN_GREATER)) {
 
         token_t* token = consume();
-        op_t op = tokentype_to_op(token->type);
-        node = create_ast_node_binary(op, node, parse_expr_simp());
+        node = create_ast_node_binary(token, node, parse_expr_simp());
     }
     return node;
 }
 
 static ast_node_t* parse_assign() {
     token_t* token = consume();
-    ast_node_t* node_ident = create_ast_node_ident(lexeme(token));
+    ast_node_t* node_ident = create_ast_node_ident(token);
     ast_node_t* node_assign = NULL;
 
     if (match(TOKEN_LEFT_BRACKET)) {
@@ -312,9 +289,9 @@ static void parse_stmt(ast_node_t* parent) {
     ast_node_t* node = NULL;
 
     if (match(TOKEN_IF)) {
-        consume();
+        token_t* token_if = consume();
         expect(TOKEN_LEFT_PAREN, "expected '('");
-        node = create_ast_node_if(parse_expr());
+        node = create_ast_node_if(token_if, parse_expr());
 
         expect(TOKEN_RIGHT_PAREN, "expected ')'");
         parse_stmt(node->as.ifstmt._if);
@@ -324,9 +301,9 @@ static void parse_stmt(ast_node_t* parent) {
         }
         add_stmt(parent, node);
     } else if (match(TOKEN_WHILE)) {
-        consume();
+        token_t* token_while = consume();
         expect(TOKEN_LEFT_PAREN, "expected '('");
-        node = create_ast_node_while(parse_expr());
+        node = create_ast_node_while(token_while, parse_expr());
         expect(TOKEN_RIGHT_PAREN, "expected ')'");
         parse_stmt(node->as.whilestmt.stmts);
         add_stmt(parent, node);
@@ -335,7 +312,7 @@ static void parse_stmt(ast_node_t* parent) {
         ast_node_t* cond = NULL;
         ast_node_t* incr = NULL;
 
-        consume();
+        token_t* token_for = consume();
         expect(TOKEN_LEFT_PAREN, "expected '('");
 
         if (!match(TOKEN_SEMICOLON)) init = parse_assign();
@@ -347,17 +324,17 @@ static void parse_stmt(ast_node_t* parent) {
         if (!match(TOKEN_RIGHT_PAREN)) incr = parse_assign();
         expect(TOKEN_RIGHT_PAREN, "expected ')'");
 
-        node = create_ast_node_for(init, cond, incr);
+        node = create_ast_node_for(token_for, init, cond, incr);
         parse_stmt(node->as.forstmt.stmts);
         add_stmt(parent, node);
     } else if (match(TOKEN_RETURN)) {
-        consume();
+        token_t* token_return = consume();
         if (match(TOKEN_SEMICOLON)) {
             consume();
-            node = create_ast_node_return(NULL);
+            node = create_ast_node_return(token_return, NULL);
             add_stmt(parent, node);
         } else {
-            node = create_ast_node_return(parse_expr());
+            node = create_ast_node_return(token_return, parse_expr());
             expect(TOKEN_SEMICOLON, "expected ';'");
             add_stmt(parent, node);
         }
@@ -370,7 +347,7 @@ static void parse_stmt(ast_node_t* parent) {
         expect(TOKEN_RIGHT_BRACE, "expected '}'");
     } else if (match(TOKEN_IDENTIFIER)) {
         if (peek(1)->type == TOKEN_LEFT_PAREN) {
-            ast_node_t* ident = create_ast_node_ident(lexeme(consume()));
+            ast_node_t* ident = create_ast_node_ident(consume());
             consume(); // -> (
             node = create_ast_node_funccall(ident);
             if (!match(TOKEN_RIGHT_PAREN)) {
@@ -405,7 +382,7 @@ static ast_node_t* parse_param_type() {
         token_type = consume();
         if (match(TOKEN_IDENTIFIER)) {
             token_ident = consume();
-            ast_node_t* ident = create_ast_node_ident(lexeme(token_ident));
+            ast_node_t* ident = create_ast_node_ident(token_ident);
             decl_type_t argtype = tokentype_2_decltype(token_type->type);
             if (match(TOKEN_LEFT_BRACKET)) {
                 consume();
@@ -442,7 +419,7 @@ static ast_node_t* parse_func() {
             token_t* token_ident = consume();
             expect(TOKEN_LEFT_PAREN, "expected '('");
             token_type_t type = tokentype_2_decltype(token_type->type);
-            ast_node_t* ident = create_ast_node_ident(lexeme(token_ident));
+            ast_node_t* ident = create_ast_node_ident(token_ident);
             node = create_ast_node_funcdecl(type, ident);
             node->as.funcdecl.params = parse_param_types();
             expect(TOKEN_RIGHT_PAREN, "expected ')'");
@@ -464,7 +441,7 @@ static void parse_vardecls(ast_node_t* parent,
                            token_t* token_type, token_t* token_ident) {
 
     token_type_t type = tokentype_2_decltype(token_type->type);
-    ast_node_t* ident = create_ast_node_ident(lexeme(token_ident));
+    ast_node_t* ident = create_ast_node_ident(token_ident);
     int array_size = 0;
 
     bool is_array = false;
@@ -495,7 +472,7 @@ static void parse_vardecls_for_func(ast_node_t* parent) {
         token_t* token_type = consume();
         type = tokentype_2_decltype(token_type->type);
         if (match(TOKEN_IDENTIFIER)) {
-            ident = create_ast_node_ident(lexeme(consume()));
+            ident = create_ast_node_ident(consume());
             if (match(TOKEN_LEFT_BRACKET)) {
                 consume();
                 is_array = true;
@@ -512,7 +489,7 @@ static void parse_vardecls_for_func(ast_node_t* parent) {
             while (match(TOKEN_COMMA)) {
                 consume();
                 if (match(TOKEN_IDENTIFIER)) {
-                    ident = create_ast_node_ident(lexeme(consume()));
+                    ident = create_ast_node_ident(consume());
                     if (match(TOKEN_LEFT_BRACKET)) {
                         consume();
                         is_array = true;
@@ -542,7 +519,7 @@ static void parse_funcdecl(ast_node_t* parent,
                            token_t* token_type, token_t* token_ident) {
     consume(); // '('
     token_type_t type = tokentype_2_decltype(token_type->type);
-    ast_node_t* ident = create_ast_node_ident(lexeme(token_ident));
+    ast_node_t* ident = create_ast_node_ident(token_ident);
     ast_node_t* params = parse_param_types();
     ast_node_t* node = create_ast_node_funcdecl(type, ident);
     node->as.funcdecl.params = params;
@@ -555,7 +532,7 @@ static void parse_funcdecl(ast_node_t* parent,
             consume();
             if (match(TOKEN_IDENTIFIER)) {
                 token_t* token_ident2 = consume();
-                ident = create_ast_node_ident(lexeme(token_ident));
+                ident = create_ast_node_ident(token_ident);
                 expect(TOKEN_LEFT_PAREN, "expected '('");
                 params = parse_param_types();
                 expect(TOKEN_RIGHT_PAREN, "expected ')'");
