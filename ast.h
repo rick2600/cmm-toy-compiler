@@ -33,11 +33,6 @@ typedef struct ast_node {
     uint32_t line;
 
     union {
-        //uint32_t number;
-        //char* character; // TODO: change to char
-        //char* string;
-        //char* ident;
-
         struct {
             struct ast_node* stmts;
         } root;

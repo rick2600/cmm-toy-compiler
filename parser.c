@@ -5,12 +5,14 @@
 #include <stdarg.h>
 #include "scanner.h"
 #include "ast.h"
-
+#include "sym_table.h"
 
 extern token_stream_t token_stream;
 uint32_t cur_token;
 bool parser_error;
 bool panic_mode;
+bool sym_error;
+sym_table_t *global_scope;
 
 static ast_node_t* parse_expr();
 
@@ -410,6 +412,7 @@ static ast_node_t* parse_param_types() {
     return node;
 }
 
+/*
 static ast_node_t* parse_func() {
     ast_node_t* node;
 
@@ -436,6 +439,7 @@ static ast_node_t* parse_func() {
 
     return node;
 }
+*/
 
 static void parse_vardecls(ast_node_t* parent,
                            token_t* token_type, token_t* token_ident) {
@@ -460,13 +464,17 @@ static void parse_vardecls(ast_node_t* parent,
 
     ast_node_t* node = create_ast_node_vardecl(type, ident, is_array, array_size);
     add_stmt(parent, node);
+    insert_sym_from_vardecl_node(global_scope, node);
 }
 
-static void parse_vardecls_for_func(ast_node_t* parent) {
+static void parse_vardecls_for_func(ast_node_t* func_node, ast_node_t* parent) {
     token_type_t type;
     ast_node_t* ident;
     bool is_array = false;
     int array_size = 0;
+
+    sym_entry_t* sym_func = sym_lookup(global_scope,
+                                    func_node->as.funcdecl.ident->as.ident.value);
 
     if (match_any(2, TOKEN_INT, TOKEN_CHAR)) {
         token_t* token_type = consume();
@@ -485,6 +493,7 @@ static void parse_vardecls_for_func(ast_node_t* parent) {
             }
             ast_node_t* node = create_ast_node_vardecl(type, ident, is_array, array_size);
             add_stmt(parent, node);
+            insert_sym_from_vardecl_node(sym_func->as.func.sym_table, node);
 
             while (match(TOKEN_COMMA)) {
                 consume();
@@ -504,6 +513,7 @@ static void parse_vardecls_for_func(ast_node_t* parent) {
                     }
                     ast_node_t* node = create_ast_node_vardecl(type, ident, is_array, array_size);
                     add_stmt(parent, node);
+                    insert_sym_from_vardecl_node(sym_func->as.func.sym_table, node);
                 }
             }
         } else {
@@ -539,23 +549,29 @@ static void parse_funcdecl(ast_node_t* parent,
                 node = create_ast_node_funcdecl(type, ident);
                 node->as.funcdecl.params = params;
                 add_stmt(parent, node);
+                if (insert_sym_from_funcdecl_node(global_scope, node, true) == false)
+                    sym_error = true;
             }
         }
         expect(TOKEN_SEMICOLON, "expected ';'");
     } else if (match(TOKEN_LEFT_BRACE)) {
             consume();
+            if (insert_sym_from_funcdecl_node(global_scope, node, false) == false)
+                sym_error = true;
+
             while(match_any(2, TOKEN_INT, TOKEN_CHAR)) {
-                parse_vardecls_for_func(node->as.funcdecl.stmts);
+                parse_vardecls_for_func(node, node->as.funcdecl.stmts);
             }
             while (!match(TOKEN_RIGHT_BRACE)) {
                 parse_stmt(node->as.funcdecl.stmts);
             }
+
             expect(TOKEN_RIGHT_BRACE, "expected '}'");
     } else {
+        if (insert_sym_from_funcdecl_node(global_scope, node, true) == false)
+            sym_error = true;
         expect(TOKEN_SEMICOLON, "expected ';'");
     }
-
-
 }
 
 static void parse_func_or_decl(ast_node_t* parent) {
@@ -593,7 +609,9 @@ static void parse_func_or_decl(ast_node_t* parent) {
 
             if (match(TOKEN_LEFT_PAREN)) {
                 parse_funcdecl(parent, token_type, token_ident);
-            } else {
+            }
+            /*
+            else {
                 parse_vardecls(parent, token_type, token_ident);
                 while(match(TOKEN_COMMA)) {
                     consume();
@@ -603,7 +621,7 @@ static void parse_func_or_decl(ast_node_t* parent) {
                     }
                 }
                 expect(TOKEN_SEMICOLON, "expected ';'");
-            }
+            }*/
         }
     }
     else {
@@ -615,6 +633,8 @@ static void parse_func_or_decl(ast_node_t* parent) {
 ast_node_t* parse(char *buffer) {
     parser_error = false;
     panic_mode = false;
+    sym_error = false;
+    global_scope = create_sym_table(NULL);
 
     get_tokens(buffer);
     //show_tokens();
@@ -630,9 +650,12 @@ ast_node_t* parse(char *buffer) {
         error_at(token, "unexpected token");
     }
 
-    if (parser_error || token_stream.error) {
+
+    if (parser_error || token_stream.error || sym_error) {
         return NULL;
-        exit(EXIT_FAILURE);
     }
+
+    //show_sym_table(global_scope);
+
     return ast;
 }
