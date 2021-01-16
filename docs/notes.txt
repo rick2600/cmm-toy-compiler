@@ -1,0 +1,8 @@
+https://www2.cs.arizona.edu/~debray/Teaching/CSc453/DOCS/cminusminusspec.html
+
+https://github.com/roshangautam/cmm-compiler/blob/master/EBNF%20C--.pdf
+
+https://www2.cs.arizona.edu/classes/cs553/fall18/DOCS/cminusminusspec.html
+
+
+https://engineering.desmos.com/articles/pratt-parser/
