@@ -90,23 +90,23 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
         do_visit_ast("expr", node->as.unary.expr, level + LEVEL_STEP);
     }
     else if (node->type == NODE_INT) {
-        sprintf(str+level, "%s: %s val: %d",
-            field, node_type_to_str(node->type), node->as.number);
+        sprintf(str+level, "%s: %s value: %d",
+            field, node_type_to_str(node->type), node->as.number.value);
         printf("Line: %d -> %s\n", node->line, str);
     }
     else if (node->type == NODE_CHAR) {
-        sprintf(str+level, "%s: %s val: '%s'",
-            field, node_type_to_str(node->type), node->as.character);
+        sprintf(str+level, "%s: %s value: '%s'",
+            field, node_type_to_str(node->type), node->as.character.value);
         printf("Line: %d -> %s\n", node->line, str);
     }
     else if (node->type == NODE_IDENT) {
-        sprintf(str+level, "%s: %s val: '%s'",
-            field, node_type_to_str(node->type), node->as.ident);
+        sprintf(str+level, "%s: %s value: '%s'",
+            field, node_type_to_str(node->type), node->as.ident.value);
         printf("Line: %d -> %s\n", node->line, str);
     }
     else if (node->type == NODE_STRING) {
         sprintf(str+level, "%s: %s val: \"%s\"",
-            field, node_type_to_str(node->type), node->as.string);
+            field, node_type_to_str(node->type), node->as.string.value);
         printf("Line: %d -> %s\n", node->line, str);
     }
     else if (node->type == NODE_FUNCCALL) {
@@ -125,6 +125,7 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
         }
     }
     else if (node->type == NODE_PARAMDECL_LIST) {
+        if (node->as.paramsdecllist.list->head == NULL) return;
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
         ast_node_t* param = node->as.paramsdecllist.list->head;
@@ -168,6 +169,7 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
         do_visit_ast("expr", node->as._return.expr, level + LEVEL_STEP);
     }
     else if (node->type == NODE_STMTSLIST) {
+        if (node->as.stmtslist.list->head == NULL) return;
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
         ast_node_t* stmt = node->as.stmtslist.list->head;
@@ -187,11 +189,6 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
         printf("Line: %d -> %s\n", node->line, str);
         do_visit_ast("ident", node->as.arrayaccess.ident, level + LEVEL_STEP);
         do_visit_ast("expr", node->as.arrayaccess.expr, level + LEVEL_STEP);
-    }
-    else if (node->type == NODE_IDENT) {
-        sprintf(str+level, "%s: %s val: '%s'",
-            field, node_type_to_str(node->type), node->as.ident);
-        printf("Line: %d -> %s\n", node->line, str);
     }
     else if (node->type == NODE_PARAMDECL) {
 
@@ -251,7 +248,7 @@ static int do_evaluate_ast(ast_node_t* node) {
         }
     }
     else if (node->type == NODE_INT) {
-        return node->as.number;
+        return node->as.number.value;
     }
 }
 

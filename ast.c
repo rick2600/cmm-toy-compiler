@@ -65,7 +65,7 @@ ast_node_t* create_ast_node_number(token_t* token) {
     ast_node_t* node =  create_ast_node(NODE_INT);
     char *str = lexeme(token);
     node->line = token->line;
-    node->as.number = atoi(str);
+    node->as.number.value = atoi(str);
     free(str);
     return node;
 }
@@ -73,21 +73,21 @@ ast_node_t* create_ast_node_number(token_t* token) {
 ast_node_t* create_ast_node_ident(token_t* token) {
     ast_node_t* node =  create_ast_node(NODE_IDENT);
     node->line = token->line;
-    node->as.ident = lexeme(token);
+    node->as.ident.value = lexeme(token);
     return node;
 }
 
 ast_node_t* create_ast_node_string(token_t* token) {
     ast_node_t* node =  create_ast_node(NODE_STRING);
     node->line = token->line;
-    node->as.string = lexeme(token);
+    node->as.string.value = lexeme(token);
     return node;
 }
 
 ast_node_t* create_ast_node_char(token_t* token) {
     ast_node_t* node =  create_ast_node(NODE_CHAR);
     node->line = token->line;
-    node->as.character = lexeme(token);
+    node->as.character.value = lexeme(token);
     return node;
 }
 
