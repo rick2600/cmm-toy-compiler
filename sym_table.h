@@ -42,8 +42,11 @@ typedef struct _sym_table {
 
 void show_sym_table(sym_table_t* scope);
 sym_table_t* create_sym_table(sym_table_t* parent);
-bool insert_sym_from_funcdecl_node(sym_table_t* scope, ast_node_t *node, bool prototype);
+//bool insert_sym_from_funcdecl_node(sym_table_t* scope, ast_node_t *node, bool prototype);
 bool insert_sym_from_vardecl_node(sym_table_t* scope, ast_node_t* node);
 sym_entry_t* sym_lookup(sym_table_t* scope, char* sym);
+
+bool insert_sym_from_funcdecl_prototype_node(sym_table_t* scope, ast_node_t *node);
+bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node);
 
 #endif

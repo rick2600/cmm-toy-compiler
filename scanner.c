@@ -17,7 +17,7 @@ static void ensure_token_stream_capacity() {
         size_t new_capacity =  token_stream.capacity + CAPACITY_STEP;
 
         token_stream.tokens = realloc(token_stream.tokens,
-                                      new_capacity * sizeof(token_t));
+            new_capacity * sizeof(token_t));
 
         if (token_stream.tokens == NULL) {
             fprintf(stderr, "Could not allocate memory for token_stream\n");
@@ -36,7 +36,7 @@ static token_t* error_token(const char* message) {
     token->length = (uint32_t)strlen(message);
     token->line = scanner.line;
     fprintf(stderr, "Line: %d: %s\n", token->line, message);
-    token_stream.error = true;
+    token_stream.had_error = true;
     return token;
 }
 
@@ -115,7 +115,7 @@ static void init_token_stream() {
     token_stream.count = 0;
     token_stream.capacity = 0;
     token_stream.tokens = NULL;
-    token_stream.error = false;
+    token_stream.had_error = false;
 }
 
 static token_t* character() {
@@ -165,7 +165,7 @@ static token_type_t check_keyword(int start, int length,
         return type;
     }
 
-  return TOKEN_IDENTIFIER;
+  return TOKEN_IDENT;
 }
 
 static token_type_t identifier_type() {
@@ -193,7 +193,7 @@ static token_type_t identifier_type() {
         case 'v': return check_keyword(1, 3, "oid", TOKEN_VOID);
         case 'w': return check_keyword(1, 4, "hile", TOKEN_WHILE);
     }
-    return TOKEN_IDENTIFIER;
+    return TOKEN_IDENT;
 }
 
 static token_t* identifier() {
@@ -256,7 +256,49 @@ token_stream_t* get_tokens(const char* source) {
     return &token_stream;
 }
 
-char *tokentype2str(token_type_t type) {
+char* token_type_str(token_type_t type) {
+    switch(type) {
+        case TOKEN_LEFT_PAREN: return "(";
+        case TOKEN_RIGHT_PAREN: return ")";
+        case TOKEN_LEFT_BRACE: return "{";
+        case TOKEN_RIGHT_BRACE: return "}";
+        case TOKEN_LEFT_BRACKET: return "[";
+        case TOKEN_RIGHT_BRACKET: return "]";
+        case TOKEN_COMMA: return ",";
+        case TOKEN_MINUS: return "-";
+        case TOKEN_PLUS: return "+";
+        case TOKEN_SEMICOLON: return ";";
+        case TOKEN_SLASH: return "/";
+        case TOKEN_STAR: return "*";
+        case TOKEN_BANG: return "!";
+        case TOKEN_BANG_EQUAL: return "!=";
+        case TOKEN_EQUAL: return "=";
+        case TOKEN_EQUAL_EQUAL: return "==";
+        case TOKEN_GREATER: return ">";
+        case TOKEN_GREATER_EQUAL: return ">=";
+        case TOKEN_LESS: return "<";
+        case TOKEN_LESS_EQUAL: return "<=";
+        case TOKEN_AND: return "&&";
+        case TOKEN_OR: return "||";
+        case TOKEN_IDENT: return "identifier";
+        case TOKEN_STRING: return "string";
+        case TOKEN_NUMBER: return "number";
+        case TOKEN_VOID: return "void";
+        case TOKEN_CHAR: return "char";
+        case TOKEN_INT: return "int";
+        case TOKEN_EXTERN: return "extern";
+        case TOKEN_IF: return "if";
+        case TOKEN_ELSE: return "else";
+        case TOKEN_WHILE: return "while";
+        case TOKEN_FOR: return "for";
+        case TOKEN_RETURN: return "return";
+        case TOKEN_ERROR: return "error";
+        case TOKEN_EOF: return "EOF";
+        default: return "unkown";
+    }
+}
+
+char *stringify_token_type(token_type_t type) {
     switch(type) {
         case TOKEN_LEFT_PAREN: return "TOKEN_LEFT_PAREN";
         case TOKEN_RIGHT_PAREN: return "TOKEN_RIGHT_PAREN";
@@ -280,7 +322,7 @@ char *tokentype2str(token_type_t type) {
         case TOKEN_LESS_EQUAL: return "TOKEN_LESS_EQUAL";
         case TOKEN_AND: return "TOKEN_AND";
         case TOKEN_OR: return "TOKEN_OR";
-        case TOKEN_IDENTIFIER: return "TOKEN_IDENTIFIER";
+        case TOKEN_IDENT: return "TOKEN_IDENT";
         case TOKEN_STRING: return "TOKEN_STRING";
         case TOKEN_NUMBER: return "TOKEN_NUMBER";
         case TOKEN_VOID: return "TOKEN_VOID";
@@ -296,4 +338,15 @@ char *tokentype2str(token_type_t type) {
         case TOKEN_EOF: return "TOKEN_EOF";
         default: return "unkown";
     }
+}
+
+char* lexeme(token_t* token) {
+    char *s = malloc(token->length + 1);
+    if (s == NULL) {
+        fprintf(stderr, "Could not allocate memory for lexeme\n");
+        exit(EXIT_FAILURE);
+    }
+    memcpy(s, token->start, token->length);
+    s[token->length] = '\0';
+    return s;
 }

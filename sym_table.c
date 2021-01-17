@@ -117,7 +117,7 @@ bool prev_funcdecl_match(sym_table_t* scope, sym_entry_t* entry, ast_node_t *nod
     return (n == entry->as.func.n_params) ? true : false;
 }
 
-static bool insert_sym_from_funcdecl_node_prototype(sym_table_t* scope, ast_node_t *node) {
+bool insert_sym_from_funcdecl_prototype_node(sym_table_t* scope, ast_node_t *node) {
     ast_node_t* ident = node->as.funcdecl.ident;
     char* sym =  ident->as.ident.value;
     sym_entry_t* entry = sym_lookup(scope, sym);
@@ -140,10 +140,10 @@ static bool insert_sym_from_funcdecl_node_prototype(sym_table_t* scope, ast_node
             insert_sym_from_paramdecl_node(entry->as.func.sym_table, param);
             entry->as.func.n_params++;
             entry->as.func.params = realloc(entry->as.func.params,
-                                            entry->as.func.n_params * sizeof(sym_entry_t*));
+                entry->as.func.n_params * sizeof(sym_entry_t*));
 
             sym_entry_t* param_sym = sym_lookup(entry->as.func.sym_table,
-                                                param->as.paramdecl.ident->as.ident.value);
+                param->as.paramdecl.ident->as.ident.value);
             entry->as.func.params[entry->as.func.n_params-1] = param_sym;
 
             param = param->next;
@@ -156,11 +156,11 @@ static bool insert_sym_from_funcdecl_node_prototype(sym_table_t* scope, ast_node
     }
 }
 
-static bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
+bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
     char *sym = node->as.funcdecl.ident->as.ident.value;
     sym_entry_t* entry = sym_lookup(scope, sym);
     if (entry == NULL) {
-        insert_sym_from_funcdecl_node_prototype(scope, node);
+        insert_sym_from_funcdecl_prototype_node(scope, node);
         entry = sym_lookup(scope, sym);
         entry->as.func.defined = true;
         return true;
@@ -184,13 +184,15 @@ static bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
     }
 }
 
+/*
 bool insert_sym_from_funcdecl_node(sym_table_t* scope, ast_node_t *node, bool prototype) {
     if (prototype) {
-        return insert_sym_from_funcdecl_node_prototype(scope, node);
+        return insert_sym_from_funcdecl_prototype_node(scope, node);
     } else {
         return insert_sym_from_funcdef_node(scope, node);
     }
 }
+*/
 
 static char* type_to_typestr(decl_type_t type) {
     if (type == TYPE_INT) return "int";
@@ -199,31 +201,40 @@ static char* type_to_typestr(decl_type_t type) {
     return "unknown";
 }
 
-static void do_show_sym_table(sym_table_t* scope, int level) {
+static void show_only(sym_entry_t* entry) {
     char fmtstr[512];
+    if (entry->type == SYM_VAR) {
+        printf("    sym type: var  | decl type: %-4s%s | sym: %-20s\n",
+            type_to_typestr(entry->as.var.type),
+            entry->as.var.is_array ? "[]":"  ",
+            entry->sym);
 
+    } else if (entry->type == SYM_FUNC) {
+        printf("    sym type: func | decl type: %-4s   | sym: %-20s | n_params: %d\n",
+            type_to_typestr(entry->as.func.type),
+            entry->sym,
+            entry->as.func.n_params);
+    }
+}
+
+static void do_show_sym_table(sym_table_t* scope) {
     for (int i = 0; i < MAX_ENTRIES; i++) {
         if (scope->entries[i] != NULL) {
             sym_entry_t* entry = scope->entries[i];
             while (entry) {
-                if (entry->type == SYM_VAR) {
-                    sprintf(fmtstr,
-                            "%%-%dssym type: var  | decl type: %%-4s%%s | sym: %%-20s\n", level);
-                    printf(fmtstr,
-                           "",
-                           type_to_typestr(entry->as.var.type),
-                           entry->as.var.is_array ? "[]":"  ",
-                           entry->sym);
-
-                } else if (entry->type == SYM_FUNC) {
-                    sprintf(fmtstr,
-                            "%%-%dssym type: func | decl type: %%-4s   | sym: %%-20s | n_params: %%d\n", level);
-                    printf(fmtstr,
-                           "",
-                           type_to_typestr(entry->as.func.type),
-                           entry->sym,
-                           entry->as.func.n_params);
-                    do_show_sym_table(entry->as.func.sym_table, level+4);
+                show_only(entry);
+                entry = entry->next;
+            }
+        }
+    }
+    for (int i = 0; i < MAX_ENTRIES; i++) {
+        if (scope->entries[i] != NULL) {
+            sym_entry_t* entry = scope->entries[i];
+            while (entry) {
+                if (entry->type == SYM_FUNC) {
+                    printf("\nSYM TABLE SCOPE: %s\n", entry->sym);
+                    do_show_sym_table(entry->as.func.sym_table);
+                    puts("--------------------------------------------------");
                 }
                 entry = entry->next;
             }
@@ -232,5 +243,6 @@ static void do_show_sym_table(sym_table_t* scope, int level) {
 }
 
 void show_sym_table(sym_table_t* scope) {
-    do_show_sym_table(scope, 0);
+    printf("SYM TABLE SCOPE: global\n");
+    do_show_sym_table(scope);
 }

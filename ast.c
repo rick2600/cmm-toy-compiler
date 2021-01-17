@@ -6,6 +6,14 @@
 #include "token.h"
 
 
+decl_type_t tokentype_2_decltype(token_type_t type) {
+    decl_type_t decl_type = TYPE_VOID;
+
+    if (type == TOKEN_INT) decl_type = TYPE_INT;
+    else if (type == TOKEN_CHAR) decl_type = TYPE_CHAR;
+
+    return decl_type;
+}
 
 static op_t tokentype_to_op(token_type_t type) {
     if (type == TOKEN_PLUS)       return OP_PLUS;

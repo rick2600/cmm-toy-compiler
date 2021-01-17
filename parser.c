@@ -3,60 +3,76 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdarg.h>
+#include "parser.h"
 #include "scanner.h"
 #include "ast.h"
 #include "sym_table.h"
+#include "ast_visitor.h"
 
-extern token_stream_t token_stream;
-uint32_t cur_token;
-bool parser_error;
-bool panic_mode;
-bool sym_error;
-sym_table_t* global_scope;
-sym_table_t* current_scope;
 
+parser_t parser;
+
+static void parse_stmt(ast_node_t* parent);
 static ast_node_t* parse_expr();
 
+static void fatal_error(const char* msg) {
+    fprintf(stderr, "fatal error: %s\n", msg);
+    exit(EXIT_FAILURE);
+}
+
+static token_t* peek(uint32_t dist) {
+    if ((parser.cur_position + dist) >= parser.token_stream->count)
+        return &parser.token_stream->tokens[parser.token_stream->count - 1];
+    else
+        return &parser.token_stream->tokens[parser.cur_position + dist];
+}
+
 static void debug_token(token_t* token) {
-    char type[20];
-    char *s;
-
-    s = tokentype2str(token->type);
-    memset(type, ' ', sizeof(type)-1);
-    memcpy(type, s, strlen(s));
-    type[sizeof(type)-1] = '\0';
-
-    printf("[%s]  '%.*s'\n", type, token->length, token->start);
+    printf("[%-18s]  '%.*s'\n",
+        stringify_token_type(token->type),
+        token->length, token->start
+    );
 }
 
 static void show_tokens() {
     int current = 0;
-
     for (;;) {
-        if (token_stream.tokens[current].type == TOKEN_EOF)
-            break;
-
-        debug_token(&token_stream.tokens[current]);
+        if (peek(current)->type == TOKEN_EOF) break;
+        debug_token(peek(current));
         current++;
     }
     printf("\n\n");
 }
 
 static void advance() {
-    if (cur_token < token_stream.count)
-        cur_token++;
+    if (parser.cur_position < parser.token_stream->count)
+        parser.cur_position++;
 }
 
-token_t* next_token() {
-    return &token_stream.tokens[cur_token];
+static token_t* last_token() {
+    if ((int32_t)parser.cur_position > 0)
+        return &parser.token_stream->tokens[parser.cur_position - 1];
+    else
+        fatal_error("index error in last_token()");
+}
+
+static token_t* next_token() {
+    if (parser.cur_position < parser.token_stream->count) {
+        advance();
+        return last_token();
+    }
+    else {
+        // EOF token.
+        return &parser.token_stream->tokens[parser.token_stream->count];
+    }
 }
 
 static void error_at(token_t* token, const char* msg) {
-    if (panic_mode)
+    if (parser.panic_mode)
         return;
 
-    panic_mode = true;
-    parser_error = true;
+    parser.panic_mode = true;
+    parser.had_error = true;
 
     fprintf(stderr, "Line: %d: error", token->line);
 
@@ -70,152 +86,152 @@ static void error_at(token_t* token, const char* msg) {
     fprintf(stderr, ": %s\n", msg);
 }
 
-static token_t* peek(uint32_t lookahead) {
-    if ((cur_token + lookahead) >= token_stream.count)
-        return &token_stream.tokens[token_stream.count - 1];
-    else
-        return &token_stream.tokens[cur_token + lookahead];
-}
-
-static token_t* consume() {
+bool match(token_type_t type) {
+    char msg[128];
     token_t* token = next_token();
-    advance();
-    return token;
-}
-
-static token_t* expect(token_type_t type, const char* msg) {
-    if (peek(0)->type == type) {
-        return consume();
+    if (token->type == type) {
+        return true;
+    } else {
+        sprintf(msg, "expected '%s'", token_type_str(type));
+        error_at(token, msg);
+        return false;
     }
-    error_at(next_token(), msg);
-    return NULL;
 }
 
-bool match_any(int n, ...) {
-    bool status = false;
-    va_list args;
-    va_start(args, n);
-    for (int i = 0; i < n; i++) {
-        if (peek(0)->type == va_arg(args, int)) {
-            status = true;
-            break;
-        }
-    }
-    va_end(args);
-    return status;
-}
-
-static bool match(token_type_t type) {
+bool is_next_token(token_type_t type) {
     return peek(0)->type == type;
 }
 
+bool is_next_token_any(int n, ...) {
+    va_list args;
+    va_start(args, n);
+    for (int i = 0; i < n; i++)
+        if (peek(0)->type == va_arg(args, int))
+            return true;
+    va_end(args);
+    return false;
+}
+
 static void synchronize() {
-    panic_mode = false;
+    parser.panic_mode = false;
 
-    while (!match(TOKEN_EOF)) {
-        if (match_any(4, TOKEN_FOR, TOKEN_IF, TOKEN_WHILE, TOKEN_RETURN)
-           //|| match(TOKEN_SEMICOLON)
-           //|| match(TOKEN_IDENTIFIER)
-            ) {
-            return;
+    while (peek(0)->type != TOKEN_EOF) {
+        if (is_next_token_any(4,
+            TOKEN_FOR, TOKEN_IF, TOKEN_WHILE, TOKEN_RETURN))
+                return;
+
+        /*
+        if ((int32_t)parser.cur_position > 0)
+            if (last_token()->type == TOKEN_SEMICOLON)
+                return;
+        */
+
+        advance();
+    }
+}
+
+static void synchronize_global() {
+    parser.panic_mode = false;
+
+    while (peek(0)->type != TOKEN_EOF) {
+        bool next_is_char_int_void = is_next_token_any(3,
+            TOKEN_VOID, TOKEN_CHAR, TOKEN_INT);
+
+        if ((int32_t)parser.cur_position > 0)
+            if (last_token()->type == TOKEN_SEMICOLON && next_is_char_int_void)
+                return;
+        advance();
+    }
+}
+
+
+
+
+static ast_node_t* parse_funccall(ast_node_t* ident) {
+    match(TOKEN_LEFT_PAREN);
+    ast_node_t* node = create_ast_node_funccall(ident);
+
+    if (!is_next_token(TOKEN_RIGHT_PAREN)) {
+        add_param(node->as.funccall.params, parse_expr());
+
+        while (is_next_token(TOKEN_COMMA)) {
+            match(TOKEN_COMMA);
+            add_param(node->as.funccall.params, parse_expr());
         }
-        consume();
     }
+    match(TOKEN_RIGHT_PAREN);
+    return node;
 }
 
-static void synchronize_decl() {
-    panic_mode = false;
+static ast_node_t* parse_arrayaccess(ast_node_t* ident) {
+    match(TOKEN_LEFT_BRACKET);
+    ast_node_t* node = create_ast_node_arrayaccess(ident, parse_expr());
+    match(TOKEN_RIGHT_BRACKET);
+    return node;
+}
 
-    while (!match(TOKEN_EOF)) {
-        if (match_any(3, TOKEN_INT, TOKEN_CHAR, TOKEN_VOID)) {
-            return;
+static ast_node_t* parse_assign() {
+    ast_node_t* node_assign = NULL;
+
+    if (match(TOKEN_IDENT)) {
+
+        token_t* token_ident = last_token();
+        ast_node_t* node_ident = create_ast_node_ident(token_ident);
+
+        if (is_next_token(TOKEN_LEFT_BRACKET)) {
+            ast_node_t* arrayaccess = parse_arrayaccess(node_ident);
+            match(TOKEN_EQUAL);
+            node_assign = create_ast_node_assign(arrayaccess, parse_expr());
+        } else if (is_next_token(TOKEN_EQUAL)) {
+            match(TOKEN_EQUAL);
+            node_assign = create_ast_node_assign(node_ident, parse_expr());
         }
-        consume();
     }
+    return node_assign;
 }
 
-static char* lexeme(token_t* token) {
-    char *s = malloc(token->length+1);
-    if (s == NULL) {
-        fprintf(stderr, "Could not allocate memory for lexeme\n");
-        exit(EXIT_FAILURE);
-    }
-    memcpy(s, token->start, token->length);
-    s[token->length] = '\0';
-    return s;
-}
 
-static decl_type_t tokentype_2_decltype(token_type_t type) {;
-    decl_type_t decl_type = TYPE_VOID;
 
-    if (type == TOKEN_INT) decl_type = TYPE_INT;
-    else if (type == TOKEN_CHAR) decl_type = TYPE_CHAR;
-
-    return decl_type;
-}
 
 static ast_node_t* parse_factor() {
+    //printf("parse_factor> "); debug_token(peek(0));
+
     ast_node_t* node = NULL;
-
-    if (match(TOKEN_NUMBER)) {
-        token_t* token = consume();
-        node = create_ast_node_number(token);
-
-    } else if (match(TOKEN_IDENTIFIER)) {
-        token_t* token = consume();
-        ast_node_t* ident = create_ast_node_ident(token);
-
-        if (sym_lookup(current_scope, ident->as.ident.value) == NULL
-            && sym_lookup(global_scope, ident->as.ident.value) == NULL ) {
-            //fprintf(stderr, "'%s' undeclared\n", node_ident->as.ident.value);
-            error_at(token, "undeclared");
-            //synchronize();
-            sym_error = true;
-        }
-
-        if (match(TOKEN_LEFT_PAREN)) {
-            consume();
-            node = create_ast_node_funccall(ident);
-
-            if (!match(TOKEN_RIGHT_PAREN)) {
-                add_param(node->as.funccall.params, parse_expr());
-                while (match(TOKEN_COMMA)) {
-                    consume();
-                    add_param(node->as.funccall.params, parse_expr());
-                }
-            }
-            expect(TOKEN_RIGHT_PAREN, "expected ')'");
-        } else if (match(TOKEN_LEFT_BRACKET)) {
-            consume();
-            node = create_ast_node_arrayaccess(ident, parse_expr());
-            expect(TOKEN_RIGHT_BRACKET, "expected ']'");
+    if (is_next_token(TOKEN_IDENT)) {
+        ast_node_t* ident = create_ast_node_ident(next_token());
+        if (is_next_token(TOKEN_LEFT_PAREN)) {
+            node = parse_funccall(ident);
+        } else if (is_next_token(TOKEN_LEFT_BRACKET)) {
+            node = parse_arrayaccess(ident);
         } else {
-            return ident;
+            node = ident;
         }
-
-    } else if (match(TOKEN_STRING)) {
-        token_t* token = consume();
-        node = create_ast_node_string(token);
-    } else if (match(TOKEN_CHAR)) {
-        token_t* token = consume();
-        node = create_ast_node_char(token);
-    } else if (match(TOKEN_LEFT_PAREN)) {
-        consume();
+    } else if (is_next_token(TOKEN_NUMBER)) {
+        node = create_ast_node_number(next_token());
+    } else if (is_next_token(TOKEN_STRING)) {
+        node = create_ast_node_string(next_token());
+    } else if (is_next_token(TOKEN_CHARCONST)) {
+        node = create_ast_node_char(next_token());
+    } else if (is_next_token(TOKEN_LEFT_PAREN)) {
+        match(TOKEN_LEFT_PAREN);
         node = parse_expr();
-        expect(TOKEN_RIGHT_PAREN, "expected ')'");
-    } else if (match(TOKEN_BANG)) {
-        token_t* token = consume();
-        node = create_ast_node_unary(token, parse_factor());
+        match(TOKEN_RIGHT_PAREN);
+    } else if (is_next_token(TOKEN_BANG)) {
+        token_t* token_op = next_token();
+        node = create_ast_node_unary(token_op, parse_factor());
+    } else {
+        error_at(next_token(), "unexpected token");
     }
     return node;
 }
 
+
 static ast_node_t* parse_term() {
     ast_node_t* node = parse_factor();
 
-    while (match_any(3, TOKEN_STAR, TOKEN_SLASH, TOKEN_AND)) {
-        token_t* token = consume();
-        node = create_ast_node_binary(token, node, parse_factor());
+    while (is_next_token_any(3, TOKEN_STAR, TOKEN_SLASH, TOKEN_AND)) {
+        token_t* token_op = next_token();
+        node = create_ast_node_binary(token_op, node, parse_factor());
     }
     return node;
 }
@@ -223,448 +239,375 @@ static ast_node_t* parse_term() {
 static ast_node_t* parse_expr_simp() {
     ast_node_t* node;
 
-    if (match(TOKEN_PLUS)) {
-        consume();
-    } else if  (match(TOKEN_MINUS)) {
-        token_t* token = consume();
-        node = create_ast_node_unary(token, parse_term());
+    if (is_next_token(TOKEN_PLUS)) {
+        match(TOKEN_PLUS);
+    } else if  (is_next_token(TOKEN_MINUS)) {
+        token_t* token_op = next_token();
+        node = create_ast_node_unary(token_op, parse_term());
     } else {
         node = parse_term();
     }
 
-    while (match_any(3, TOKEN_PLUS, TOKEN_MINUS, TOKEN_OR)) {
-        token_t* token = consume();
-        node = create_ast_node_binary(token, node, parse_term());
+    while (is_next_token_any(3, TOKEN_PLUS, TOKEN_MINUS, TOKEN_OR)) {
+        token_t* token_op = next_token();
+        node = create_ast_node_binary(token_op, node, parse_term());
     }
-
     return node;
 }
 
 static ast_node_t* parse_expr() {
     ast_node_t* node = parse_expr_simp();
 
-    while (match_any(3, TOKEN_EQUAL_EQUAL, TOKEN_BANG_EQUAL, TOKEN_LESS_EQUAL)
-          || match_any(3, TOKEN_LESS, TOKEN_GREATER_EQUAL, TOKEN_GREATER)) {
-
-        token_t* token = consume();
-        node = create_ast_node_binary(token, node, parse_expr_simp());
+    while (is_next_token_any(3, TOKEN_EQUAL_EQUAL, TOKEN_BANG_EQUAL, TOKEN_LESS_EQUAL) ||
+        is_next_token_any(3, TOKEN_LESS, TOKEN_GREATER_EQUAL, TOKEN_GREATER)) {
+            token_t* token_op = next_token();
+            node = create_ast_node_binary(token_op, node, parse_expr_simp());
     }
     return node;
 }
 
-static ast_node_t* parse_assign() {
-    token_t* token = consume();
-    ast_node_t* node_ident = create_ast_node_ident(token);
-    ast_node_t* node_assign = NULL;
-
-
-    if (match(TOKEN_LEFT_BRACKET)) {
-        consume();
-        ast_node_t* arrayaccess = create_ast_node_arrayaccess(node_ident, parse_expr());
-        expect(TOKEN_RIGHT_BRACKET, "expected ']'");
-        expect(TOKEN_EQUAL, "expected '='");
-        node_assign = create_ast_node_assign(arrayaccess, parse_expr());
-    } else if (match(TOKEN_EQUAL)) {
-        consume();
-        node_assign = create_ast_node_assign(node_ident, parse_expr());
-    }
-    if (sym_lookup(current_scope, node_ident->as.ident.value) == NULL
-        && sym_lookup(global_scope, node_ident->as.ident.value) == NULL ) {
-        //fprintf(stderr, "'%s' undeclared\n", node_ident->as.ident.value);
-        error_at(token, "undeclared");
-        //synchronize();
-        sym_error = true;
-    }
-    return node_assign;
-}
-
-static void parse_stmt(ast_node_t* parent) {
-
-    if (panic_mode)
-        synchronize();
-
+static void parse_if_stmt(ast_node_t* parent) {
     ast_node_t* node = NULL;
+    match(TOKEN_IF);
+    token_t* token_if = last_token();
 
-    if (match(TOKEN_IF)) {
-        token_t* token_if = consume();
-        expect(TOKEN_LEFT_PAREN, "expected '('");
+    if (match(TOKEN_LEFT_PAREN)) {
         node = create_ast_node_if(token_if, parse_expr());
-
-        expect(TOKEN_RIGHT_PAREN, "expected ')'");
+        match(TOKEN_RIGHT_PAREN);
         parse_stmt(node->as.ifstmt._if);
-        if (match(TOKEN_ELSE)) {
-            consume();
+
+        if (is_next_token(TOKEN_ELSE)) {
+            match(TOKEN_ELSE);
             parse_stmt(node->as.ifstmt._else);
         }
         add_stmt(parent, node);
-    } else if (match(TOKEN_WHILE)) {
-        token_t* token_while = consume();
-        expect(TOKEN_LEFT_PAREN, "expected '('");
+    }
+}
+
+static void parse_while_stmt(ast_node_t* parent) {
+    ast_node_t* node = NULL;
+    match(TOKEN_WHILE);
+    token_t* token_while = last_token();
+
+    if (match(TOKEN_LEFT_PAREN)) {
         node = create_ast_node_while(token_while, parse_expr());
-        expect(TOKEN_RIGHT_PAREN, "expected ')'");
+        match(TOKEN_RIGHT_PAREN);
         parse_stmt(node->as.whilestmt.stmts);
         add_stmt(parent, node);
-    } else if (match(TOKEN_FOR)) {
-        ast_node_t* init = NULL;
-        ast_node_t* cond = NULL;
-        ast_node_t* incr = NULL;
+    }
+}
 
-        token_t* token_for = consume();
-        expect(TOKEN_LEFT_PAREN, "expected '('");
+static void parse_for_stmt(ast_node_t* parent) {
+    ast_node_t* node = NULL;
+    ast_node_t* init = NULL;
+    ast_node_t* cond = NULL;
+    ast_node_t* incr = NULL;
 
-        if (!match(TOKEN_SEMICOLON)) init = parse_assign();
-        expect(TOKEN_SEMICOLON, "expected ';'");
+    match(TOKEN_FOR);
+    token_t* token_for = last_token();
+    if (match(TOKEN_LEFT_PAREN)) {
 
-        if (!match(TOKEN_SEMICOLON)) cond = parse_expr();
-        expect(TOKEN_SEMICOLON, "expected ';'");
+        if (!is_next_token(TOKEN_SEMICOLON)) init = parse_assign();
+        match(TOKEN_SEMICOLON);
 
-        if (!match(TOKEN_RIGHT_PAREN)) incr = parse_assign();
-        expect(TOKEN_RIGHT_PAREN, "expected ')'");
+        if (!is_next_token(TOKEN_SEMICOLON)) cond = parse_expr();
+        match(TOKEN_SEMICOLON);
+
+        if (!is_next_token(TOKEN_RIGHT_PAREN)) incr = parse_assign();
+        match(TOKEN_RIGHT_PAREN);
 
         node = create_ast_node_for(token_for, init, cond, incr);
         parse_stmt(node->as.forstmt.stmts);
         add_stmt(parent, node);
-    } else if (match(TOKEN_RETURN)) {
-        token_t* token_return = consume();
-        if (match(TOKEN_SEMICOLON)) {
-            consume();
-            node = create_ast_node_return(token_return, NULL);
-            add_stmt(parent, node);
-        } else {
-            node = create_ast_node_return(token_return, parse_expr());
-            expect(TOKEN_SEMICOLON, "expected ';'");
-            add_stmt(parent, node);
-        }
-    } else if (match(TOKEN_LEFT_BRACE)) {
-        consume();
-        while (match_any(4, TOKEN_IF, TOKEN_WHILE, TOKEN_FOR, TOKEN_RETURN)
-               || match_any(3, TOKEN_IDENTIFIER, TOKEN_LEFT_BRACE, TOKEN_SEMICOLON)) {
-            parse_stmt(parent);
-        }
-        expect(TOKEN_RIGHT_BRACE, "expected '}'");
-    } else if (match(TOKEN_IDENTIFIER)) {
-        if (peek(1)->type == TOKEN_LEFT_PAREN) {
-            token_t* token_ident = consume();
-            ast_node_t* ident = create_ast_node_ident(token_ident);
-            consume(); // -> (
-            node = create_ast_node_funccall(ident);
-
-            if (sym_lookup(current_scope, ident->as.ident.value) == NULL
-                && sym_lookup(global_scope, ident->as.ident.value) == NULL ) {
-                error_at(token_ident, "undeclared");
-                sym_error = true;
-            }
-
-            if (!match(TOKEN_RIGHT_PAREN)) {
-                add_stmt(node->as.funccall.params, parse_expr());
-                while (match(TOKEN_COMMA)) {
-                    consume();
-                    add_stmt(node->as.funccall.params, parse_expr());
-                }
-            }
-            expect(TOKEN_RIGHT_PAREN, "expected ')'");
-            expect(TOKEN_SEMICOLON, "expected ';'");
-            add_stmt(parent, node);
-        } else {
-            add_stmt(parent, parse_assign());
-            expect(TOKEN_SEMICOLON, "expected ';'");
-        }
-    } else if (match(TOKEN_SEMICOLON)) {
-        consume();
-    }
-    else {
-        error_at(peek(0), "unexpected token");
     }
 }
 
-static ast_node_t* parse_param_type() {
+static void parse_return_stmt(ast_node_t* parent) {
+    ast_node_t* node = NULL;
+    match(TOKEN_RETURN);
+    token_t* token_return = last_token();
+
+    if (is_next_token(TOKEN_SEMICOLON)) {
+        match(TOKEN_SEMICOLON);
+        node = create_ast_node_return(token_return, NULL);
+        add_stmt(parent, node);
+    } else {
+        node = create_ast_node_return(token_return, parse_expr());
+        match(TOKEN_SEMICOLON);
+        add_stmt(parent, node);
+    }
+}
+
+static void parse_brace_stmt(ast_node_t* parent) {
+    match(TOKEN_LEFT_BRACE);
+    while (
+        is_next_token_any(4, TOKEN_IF, TOKEN_WHILE, TOKEN_FOR, TOKEN_RETURN) ||
+        is_next_token_any(3, TOKEN_IDENT, TOKEN_LEFT_BRACE, TOKEN_SEMICOLON)) {
+            parse_stmt(parent);
+    }
+    match(TOKEN_RIGHT_BRACE);
+}
+
+
+static void parse_ident_stmt(ast_node_t* parent) {
+    if (peek(1)->type == TOKEN_LEFT_PAREN) {
+        match(TOKEN_IDENT);
+        token_t* token_ident = last_token();
+        ast_node_t* node = parse_funccall(create_ast_node_ident(token_ident));
+        add_stmt(parent, node);
+    } else {
+        add_stmt(parent, parse_assign());
+        match(TOKEN_SEMICOLON);
+    }
+}
+
+static void parse_stmt(ast_node_t* parent) {
+    if (parser.panic_mode)
+        synchronize();
+
+    if (is_next_token(TOKEN_IF)) {
+        parse_if_stmt(parent);
+
+    } else if (is_next_token(TOKEN_WHILE)) {
+        parse_while_stmt(parent);
+
+    } else if (is_next_token(TOKEN_FOR)) {
+        parse_for_stmt(parent);
+
+    } else if (is_next_token(TOKEN_RETURN)) {
+        parse_return_stmt(parent);
+
+    } else if (is_next_token(TOKEN_LEFT_BRACE)) {
+        parse_brace_stmt(parent);
+
+    } else if (is_next_token(TOKEN_IDENT)) {
+        parse_ident_stmt(parent);
+
+    } else if (is_next_token(TOKEN_SEMICOLON)) {
+        match(TOKEN_SEMICOLON);
+    } else {
+        error_at(next_token(), "unexpected token");
+    }
+}
+
+static void parse_vardecls_for_func(ast_node_t* func_node, ast_node_t* parent) {
+    if (is_next_token_any(2, TOKEN_INT, TOKEN_CHAR)) {
+        token_t* token_type = next_token();
+        token_type_t type = tokentype_2_decltype(token_type->type);
+        if (match(TOKEN_IDENT)) {
+            ast_node_t* ident = create_ast_node_ident(last_token());
+            bool is_array = false;
+            int array_size = 0;
+            if (is_next_token(TOKEN_LEFT_BRACKET)) {
+                match(TOKEN_LEFT_BRACKET);
+                is_array = true;
+                if (match(TOKEN_NUMBER)) {
+                    char* s = lexeme(last_token());
+                    array_size = atoi(s);
+                    free(s);
+                }
+                match(TOKEN_RIGHT_BRACKET);
+            }
+            ast_node_t* node = create_ast_node_vardecl(
+                type, ident, is_array, array_size);
+
+            sym_entry_t* entry = sym_lookup(parser.global_sym_table,
+                func_node->as.funcdecl.ident->as.ident.value);
+
+            insert_sym_from_vardecl_node(entry->as.func.sym_table, node);
+
+            add_stmt(parent, node);
+        }
+    }
+}
+
+static void begin_parse_vardecls_for_func(
+    ast_node_t* func_node, ast_node_t* parent) {
+
+    parse_vardecls_for_func(func_node, parent);
+    while (is_next_token(TOKEN_COMMA)) {
+        advance();
+        parse_vardecls_for_func(func_node, parent);
+    }
+    match(TOKEN_SEMICOLON);
+}
+
+static ast_node_t* parse_param() {
     ast_node_t* node = NULL;
     token_t* token_type;
     token_t* token_ident;
     bool is_array = false;
 
-    if (match_any(2, TOKEN_INT, TOKEN_CHAR)) {
-        token_type = consume();
-        if (match(TOKEN_IDENTIFIER)) {
-            token_ident = consume();
+    if (is_next_token_any(2, TOKEN_INT, TOKEN_CHAR)) {
+        token_type = next_token();
+        if (match(TOKEN_IDENT)) {
+            token_ident = last_token();
             ast_node_t* ident = create_ast_node_ident(token_ident);
             decl_type_t argtype = tokentype_2_decltype(token_type->type);
-            if (match(TOKEN_LEFT_BRACKET)) {
-                consume();
+            if (is_next_token(TOKEN_LEFT_BRACKET)) {
+                match(TOKEN_LEFT_BRACKET);
                 is_array = true;
-                expect(TOKEN_RIGHT_BRACKET, "expected ']'");
+                match(TOKEN_RIGHT_BRACKET);
             }
             node = create_ast_node_paramdecl(argtype, ident, is_array);
         }
-    } else if (match(TOKEN_VOID)) {
-        consume();
+    } else if (is_next_token(TOKEN_VOID)) {
+        next_token();
+    } else {
+        error_at(next_token(), "expected 'int', 'char' or 'void'");
     }
     return node;
 }
 
-static ast_node_t* parse_param_types() {
+static ast_node_t* parse_params() {
     ast_node_t* node = create_ast_node_paramdecl_list();
-    ast_node_t* param = parse_param_type();
+    ast_node_t* param = parse_param();
     if (param != NULL) {
         add_paramdecl(node, param);
-        while (match(TOKEN_COMMA)) {
-            consume();
-            add_paramdecl(node, parse_param_type());
+        while (is_next_token(TOKEN_COMMA)) {
+            match(TOKEN_COMMA);
+            add_paramdecl(node, parse_param());
         }
     }
     return node;
 }
 
-/*
-static ast_node_t* parse_func() {
-    ast_node_t* node;
-
-    if (match_any(3, TOKEN_VOID, TOKEN_INT, TOKEN_CHAR)) {
-        token_t* token_type = consume();
-        if (match(TOKEN_IDENTIFIER)) {
-            token_t* token_ident = consume();
-            expect(TOKEN_LEFT_PAREN, "expected '('");
-            token_type_t type = tokentype_2_decltype(token_type->type);
-            ast_node_t* ident = create_ast_node_ident(token_ident);
-            node = create_ast_node_funcdecl(type, ident);
-            node->as.funcdecl.params = parse_param_types();
-            expect(TOKEN_RIGHT_PAREN, "expected ')'");
-            expect(TOKEN_LEFT_BRACE, "expected '{'");
-
-            while (!match(TOKEN_RIGHT_BRACE)) {
-                parse_stmt(node->as.funcdecl.stmts);
-            }
-
-            expect(TOKEN_RIGHT_BRACE, "expected '}'");
-
-        }
+static ast_node_t* parse_funcdecl(ast_node_t* parent, token_t* token_type) {
+    if (match(TOKEN_IDENT)) {
+        token_t* token_ident = last_token();
+        match(TOKEN_LEFT_PAREN);
+        token_type_t type = tokentype_2_decltype(token_type->type);
+        ast_node_t* ident = create_ast_node_ident(token_ident);
+        ast_node_t* params = parse_params();
+        ast_node_t* node = create_ast_node_funcdecl(type, ident);
+        node->as.funcdecl.params = params;
+        match(TOKEN_RIGHT_PAREN);
+        add_stmt(parent, node);
+        insert_sym_from_funcdecl_prototype_node(parser.global_sym_table, node);
+        return node;
+        // TODO: add symbol
     }
-
-    return node;
-}
-*/
-
-static void parse_vardecls(ast_node_t* parent,
-                           token_t* token_type, token_t* token_ident) {
-
-    token_type_t type = tokentype_2_decltype(token_type->type);
-    ast_node_t* ident = create_ast_node_ident(token_ident);
-    int array_size = 0;
-
-    bool is_array = false;
-
-    if (match(TOKEN_LEFT_BRACKET)) {
-        consume();
-        is_array = true;
-        if (match(TOKEN_NUMBER)) {
-            char* s = lexeme(consume());
-            array_size = atoi(s);
-            free(s);
-        }
-
-        expect(TOKEN_RIGHT_BRACKET, "expected ']'");
-    }
-
-    ast_node_t* node = create_ast_node_vardecl(type, ident, is_array, array_size);
-    add_stmt(parent, node);
-    insert_sym_from_vardecl_node(global_scope, node);
+    return NULL; // TODO: return a func anyway?
 }
 
-static void parse_vardecls_for_func(ast_node_t* func_node, ast_node_t* parent) {
-    token_type_t type;
-    ast_node_t* ident;
-    bool is_array = false;
-    int array_size = 0;
+static void begin_parse_funcdecl(ast_node_t* parent, token_t* token_type) {
+    if (parser.panic_mode) return;
+    ast_node_t* node = parse_funcdecl(parent, token_type);
+    if (node == NULL)
+        return;
 
-    sym_entry_t* sym_func = sym_lookup(global_scope,
-                                    func_node->as.funcdecl.ident->as.ident.value);
-
-    if (match_any(2, TOKEN_INT, TOKEN_CHAR)) {
-        token_t* token_type = consume();
-        type = tokentype_2_decltype(token_type->type);
-        if (match(TOKEN_IDENTIFIER)) {
-            ident = create_ast_node_ident(consume());
-            if (match(TOKEN_LEFT_BRACKET)) {
-                consume();
-                is_array = true;
-                if (match(TOKEN_NUMBER)) {
-                    char* s = lexeme(consume());
-                    array_size = atoi(s);
-                    free(s);
-                }
-                expect(TOKEN_RIGHT_BRACKET, "expected ']'");
-            }
-            ast_node_t* node = create_ast_node_vardecl(type, ident, is_array, array_size);
-            add_stmt(parent, node);
-            insert_sym_from_vardecl_node(sym_func->as.func.sym_table, node);
-
-            while (match(TOKEN_COMMA)) {
-                consume();
-                if (match(TOKEN_IDENTIFIER)) {
-                    ident = create_ast_node_ident(consume());
-                    if (match(TOKEN_LEFT_BRACKET)) {
-                        consume();
-                        is_array = true;
-                        if (match(TOKEN_NUMBER)) {
-                            char* s = lexeme(consume());
-                            array_size = atoi(s);
-                            free(s);
-                        }
-
-
-                        expect(TOKEN_RIGHT_BRACKET, "expected ']'");
-                    }
-                    ast_node_t* node = create_ast_node_vardecl(type, ident, is_array, array_size);
-                    add_stmt(parent, node);
-                    insert_sym_from_vardecl_node(sym_func->as.func.sym_table, node);
-                }
-            }
-        } else {
-            error_at(consume(), "expected an identifier");
-        }
-        expect(TOKEN_SEMICOLON, "expected ';'");
-    } else {
-        error_at(consume(), "expected 'int' or 'char'");
-    }
-}
-
-static void parse_funcdecl(ast_node_t* parent,
-                           token_t* token_type, token_t* token_ident) {
-    consume(); // '('
-    token_type_t type = tokentype_2_decltype(token_type->type);
-    ast_node_t* ident = create_ast_node_ident(token_ident);
-    ast_node_t* params = parse_param_types();
-    ast_node_t* node = create_ast_node_funcdecl(type, ident);
-    node->as.funcdecl.params = params;
-
-    expect(TOKEN_RIGHT_PAREN, "expected ')'");
-    add_stmt(parent, node);
-
-    if (match(TOKEN_COMMA)) {
+    if (is_next_token(TOKEN_COMMA)) {
         while (match(TOKEN_COMMA)) {
-            consume();
-            if (match(TOKEN_IDENTIFIER)) {
-                token_t* token_ident2 = consume();
-                ident = create_ast_node_ident(token_ident2);
-                expect(TOKEN_LEFT_PAREN, "expected '('");
-                params = parse_param_types();
-                expect(TOKEN_RIGHT_PAREN, "expected ')'");
-                node = create_ast_node_funcdecl(type, ident);
-                node->as.funcdecl.params = params;
-                add_stmt(parent, node);
-                if (insert_sym_from_funcdecl_node(global_scope, node, true) == false)
-                    sym_error = true;
-            }
+            parse_funcdecl(parent, token_type);
         }
-        expect(TOKEN_SEMICOLON, "expected ';'");
-    } else if (match(TOKEN_LEFT_BRACE)) {
-            consume();
+        match(TOKEN_SEMICOLON);
+    } else if (is_next_token(TOKEN_LEFT_BRACE)) {
+        insert_sym_from_funcdef_node(parser.global_sym_table, node);
+        match(TOKEN_LEFT_BRACE);
 
-            if (insert_sym_from_funcdecl_node(global_scope, node, false) == false)
-                sym_error = true;
+        while (is_next_token_any(2, TOKEN_INT, TOKEN_CHAR)) {
+            begin_parse_vardecls_for_func(node, node->as.funcdecl.stmts);
+        }
 
-            sym_entry_t* entry;
-            entry = sym_lookup(global_scope, node->as.funcdecl.ident->as.ident.value);
-            current_scope = entry->as.func.sym_table;
+        while (!is_next_token(TOKEN_RIGHT_BRACE) && !is_next_token(TOKEN_EOF)) {
+            parse_stmt(node->as.funcdecl.stmts);
+        }
 
-            while(match_any(2, TOKEN_INT, TOKEN_CHAR)) {
-                parse_vardecls_for_func(node, node->as.funcdecl.stmts);
-            }
-            while (!match(TOKEN_RIGHT_BRACE)) {
-                parse_stmt(node->as.funcdecl.stmts);
-            }
-
-            expect(TOKEN_RIGHT_BRACE, "expected '}'");
+        match(TOKEN_RIGHT_BRACE);
+    } else if (is_next_token(TOKEN_SEMICOLON)) {
+        match(TOKEN_SEMICOLON);
     } else {
-        if (insert_sym_from_funcdecl_node(global_scope, node, true) == false)
-            sym_error = true;
-        expect(TOKEN_SEMICOLON, "expected ';'");
+        error_at(next_token(), "expected ';' or '{'");
     }
+}
+
+static void parse_vardecls(ast_node_t* parent, token_t* token_type) {
+    if (parser.panic_mode) return;
+    token_type_t type = tokentype_2_decltype(token_type->type);
+
+    if (is_next_token(TOKEN_IDENT)) {
+        ast_node_t* ident = create_ast_node_ident(next_token());
+        int array_size = 0;
+        bool is_array = false;
+
+        if (is_next_token(TOKEN_LEFT_BRACKET)) {
+            match(TOKEN_LEFT_BRACKET);
+            if (match(TOKEN_NUMBER)) {
+                char* s = lexeme(last_token());
+                array_size = atoi(s);
+                free(s);
+            }
+            match(TOKEN_RIGHT_BRACKET);
+        }
+        ast_node_t* node = create_ast_node_vardecl(
+            type, ident, is_array, array_size);
+
+        add_stmt(parent, node);
+        insert_sym_from_vardecl_node(parser.global_sym_table, node);
+    }
+}
+
+static void begin_parse_vardecls(ast_node_t* parent, token_t* token_type) {
+    if (parser.panic_mode) return;
+
+    parse_vardecls(parent, token_type);
+    while (is_next_token(TOKEN_COMMA)) {
+        match(TOKEN_COMMA);
+        parse_vardecls(parent, token_type);
+    }
+    match(TOKEN_SEMICOLON);
 }
 
 static void parse_func_or_decl(ast_node_t* parent) {
     token_t* token_type;
-    token_t* token_ident;
-    current_scope = global_scope;
 
-    if (panic_mode)
-        synchronize_decl();
+    if (parser.panic_mode)
+        synchronize_global();
 
-    if (match_any(2, TOKEN_INT, TOKEN_CHAR)) {
-        token_type = consume();
-        if (match(TOKEN_IDENTIFIER)) {
-            token_ident = consume();
-
-            if (match(TOKEN_LEFT_PAREN)) {
-                parse_funcdecl(parent, token_type, token_ident);
-            } else {
-                parse_vardecls(parent, token_type, token_ident);
-                while(match(TOKEN_COMMA)) {
-                    consume();
-                    if (match(TOKEN_IDENTIFIER)) {
-                        token_ident = consume();
-                        parse_vardecls(parent, token_type, token_ident);
-                    }
-                }
-                expect(TOKEN_SEMICOLON, "expected ';'");
-            }
+    if (is_next_token_any(2, TOKEN_INT, TOKEN_CHAR)) {
+        token_type = next_token();
+        if (is_next_token(TOKEN_IDENT)) {
+            if (peek(1)->type == TOKEN_LEFT_PAREN)
+                begin_parse_funcdecl(parent, token_type);
+            else
+                begin_parse_vardecls(parent, token_type);
+        } else {
+            error_at(next_token(), "expected 'identifier'");
         }
-    }
-    else if (match(TOKEN_VOID)) {
-        token_type = consume();
-        if (match(TOKEN_IDENTIFIER)) {
-            token_ident = consume();
-
-            if (match(TOKEN_LEFT_PAREN)) {
-                parse_funcdecl(parent, token_type, token_ident);
-            }
-            /*
-            else {
-                parse_vardecls(parent, token_type, token_ident);
-                while(match(TOKEN_COMMA)) {
-                    consume();
-                    if (match(TOKEN_IDENTIFIER)) {
-                        token_ident = consume();
-                        parse_vardecls(parent, token_type, token_ident);
-                    }
-                }
-                expect(TOKEN_SEMICOLON, "expected ';'");
-            }*/
-        }
-    }
-    else {
-        error_at(peek(0), "unexpected token");
-        synchronize_decl();
+    } else if (is_next_token(TOKEN_VOID)) {
+        token_type = next_token();
+        begin_parse_funcdecl(parent, token_type);
+    } else {
+        if (!is_next_token(TOKEN_EOF))
+            error_at(next_token(), "expected 'int' or 'char' or 'void'");
     }
 }
 
+static void init_parser() {
+    parser.cur_position = 0;
+    parser.token_stream = NULL;
+    parser.panic_mode = NULL;
+    parser.had_error = false;
+    parser.global_sym_table = create_sym_table(NULL);
+    parser.cur_sym_table = NULL;
+}
+
+
 ast_node_t* parse(char *buffer) {
-    parser_error = false;
-    panic_mode = false;
-    sym_error = false;
-    global_scope = create_sym_table(NULL);
-    current_scope = global_scope;
-
-    get_tokens(buffer);
+    init_parser();
+    parser.token_stream = get_tokens(buffer);
     //show_tokens();
-
     ast_node_t* ast = create_ast_node_root();
 
-    while(!match(TOKEN_EOF)) {
+    while (!is_next_token(TOKEN_EOF)) {
         parse_func_or_decl(ast->as.root.stmts);
     }
 
-    while (!match(TOKEN_EOF)) {
-        token_t* token = consume();
-        error_at(token, "unexpected token");
-    }
+    show_sym_table(parser.global_sym_table);
 
-
-    if (parser_error || token_stream.error || sym_error) {
+    //if (parser.had_error)
         return NULL;
-    }
-
-    //show_sym_table(global_scope);
 
     return ast;
 }
+

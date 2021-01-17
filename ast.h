@@ -141,6 +141,7 @@ typedef struct ast_node_list {
     struct ast_node* tail;
 } ast_node_list_t ;
 
+decl_type_t tokentype_2_decltype(token_type_t type);
 ast_node_t* create_ast_node(ast_node_type_t type);
 ast_node_list_t* create_ast_node_list();
 void add_stmt(ast_node_t* parent, ast_node_t* stmt);

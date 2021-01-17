@@ -21,7 +21,7 @@ typedef enum {
     TOKEN_AND, TOKEN_OR,
 
     // Literals.
-    TOKEN_IDENTIFIER, TOKEN_STRING, TOKEN_NUMBER,
+    TOKEN_IDENT, TOKEN_STRING, TOKEN_NUMBER, TOKEN_CHARCONST,
 
     // Types.
     TOKEN_VOID, TOKEN_CHAR, TOKEN_INT,
@@ -47,7 +47,7 @@ typedef struct {
     uint32_t count;
     uint32_t capacity;
     token_t* tokens;
-    bool error;
+    bool had_error;
 } token_stream_t;
 
 #endif
