@@ -12,7 +12,8 @@ uint32_t cur_token;
 bool parser_error;
 bool panic_mode;
 bool sym_error;
-sym_table_t *global_scope;
+sym_table_t* global_scope;
+sym_table_t* current_scope;
 
 static ast_node_t* parse_expr();
 
@@ -151,30 +152,6 @@ static decl_type_t tokentype_2_decltype(token_type_t type) {;
     return decl_type;
 }
 
-static bool maybe_func() {
-    if (peek(0)->type == TOKEN_INT
-        || peek(0)->type == TOKEN_CHAR
-        || peek(0)->type == TOKEN_VOID) {
-
-        if (peek(1)->type == TOKEN_IDENTIFIER
-            && peek(2)->type == TOKEN_LEFT_PAREN) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static ast_node_t* parse_prog() {
-    ast_node_t* node = create_ast_node(NODE_ROOT);
-    //ast_node_t* child;
-
-    if (maybe_func()) {
-
-    }
-
-    return node;
-}
-
 static ast_node_t* parse_factor() {
     ast_node_t* node = NULL;
 
@@ -185,6 +162,13 @@ static ast_node_t* parse_factor() {
     } else if (match(TOKEN_IDENTIFIER)) {
         token_t* token = consume();
         ast_node_t* ident = create_ast_node_ident(token);
+
+        if (sym_lookup(current_scope, ident->as.ident.value) == NULL
+            && sym_lookup(global_scope, ident->as.ident.value) == NULL ) {
+            //fprintf(stderr, "'%s' undeclared\n", node_ident->as.ident.value);
+            error_at(token, "undeclared");
+            sym_error = true;
+        }
 
         if (match(TOKEN_LEFT_PAREN)) {
             consume();
@@ -270,6 +254,7 @@ static ast_node_t* parse_assign() {
     ast_node_t* node_ident = create_ast_node_ident(token);
     ast_node_t* node_assign = NULL;
 
+
     if (match(TOKEN_LEFT_BRACKET)) {
         consume();
         ast_node_t* arrayaccess = create_ast_node_arrayaccess(node_ident, parse_expr());
@@ -279,6 +264,12 @@ static ast_node_t* parse_assign() {
     } else if (match(TOKEN_EQUAL)) {
         consume();
         node_assign = create_ast_node_assign(node_ident, parse_expr());
+    }
+    if (sym_lookup(current_scope, node_ident->as.ident.value) == NULL
+        && sym_lookup(global_scope, node_ident->as.ident.value) == NULL ) {
+        //fprintf(stderr, "'%s' undeclared\n", node_ident->as.ident.value);
+        error_at(token, "undeclared");
+        sym_error = true;
     }
     return node_assign;
 }
@@ -349,9 +340,17 @@ static void parse_stmt(ast_node_t* parent) {
         expect(TOKEN_RIGHT_BRACE, "expected '}'");
     } else if (match(TOKEN_IDENTIFIER)) {
         if (peek(1)->type == TOKEN_LEFT_PAREN) {
-            ast_node_t* ident = create_ast_node_ident(consume());
+            token_t* token_ident = consume();
+            ast_node_t* ident = create_ast_node_ident(token_ident);
             consume(); // -> (
             node = create_ast_node_funccall(ident);
+
+            if (sym_lookup(current_scope, ident->as.ident.value) == NULL
+                && sym_lookup(global_scope, ident->as.ident.value) == NULL ) {
+                error_at(token_ident, "undeclared");
+                sym_error = true;
+            }
+
             if (!match(TOKEN_RIGHT_PAREN)) {
                 add_stmt(node->as.funccall.params, parse_expr());
                 while (match(TOKEN_COMMA)) {
@@ -542,7 +541,7 @@ static void parse_funcdecl(ast_node_t* parent,
             consume();
             if (match(TOKEN_IDENTIFIER)) {
                 token_t* token_ident2 = consume();
-                ident = create_ast_node_ident(token_ident);
+                ident = create_ast_node_ident(token_ident2);
                 expect(TOKEN_LEFT_PAREN, "expected '('");
                 params = parse_param_types();
                 expect(TOKEN_RIGHT_PAREN, "expected ')'");
@@ -556,8 +555,13 @@ static void parse_funcdecl(ast_node_t* parent,
         expect(TOKEN_SEMICOLON, "expected ';'");
     } else if (match(TOKEN_LEFT_BRACE)) {
             consume();
+
             if (insert_sym_from_funcdecl_node(global_scope, node, false) == false)
                 sym_error = true;
+
+            sym_entry_t* entry;
+            entry = sym_lookup(global_scope, node->as.funcdecl.ident->as.ident.value);
+            current_scope = entry->as.func.sym_table;
 
             while(match_any(2, TOKEN_INT, TOKEN_CHAR)) {
                 parse_vardecls_for_func(node, node->as.funcdecl.stmts);
@@ -577,7 +581,7 @@ static void parse_funcdecl(ast_node_t* parent,
 static void parse_func_or_decl(ast_node_t* parent) {
     token_t* token_type;
     token_t* token_ident;
-    bool is_array = false;
+    current_scope = global_scope;
 
     if (panic_mode)
         synchronize_decl();
@@ -635,6 +639,7 @@ ast_node_t* parse(char *buffer) {
     panic_mode = false;
     sym_error = false;
     global_scope = create_sym_table(NULL);
+    current_scope = global_scope;
 
     get_tokens(buffer);
     //show_tokens();

@@ -21,6 +21,7 @@ static op_t tokentype_to_op(token_type_t type) {
     else if (type == TOKEN_LESS)            return OP_LT;
     else if (type == TOKEN_GREATER_EQUAL)   return OP_GE;
     else if (type == TOKEN_GREATER)         return OP_GT;
+    else return -1;
 }
 
 static char* lexeme(token_t* token) {

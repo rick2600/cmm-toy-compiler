@@ -294,5 +294,6 @@ char *tokentype2str(token_type_t type) {
         case TOKEN_RETURN: return "TOKEN_RETURN";
         case TOKEN_ERROR: return "TOKEN_ERROR";
         case TOKEN_EOF: return "TOKEN_EOF";
+        default: return "unkown";
     }
 }
