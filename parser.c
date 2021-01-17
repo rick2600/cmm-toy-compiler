@@ -113,8 +113,10 @@ static void synchronize() {
     panic_mode = false;
 
     while (!match(TOKEN_EOF)) {
-        if (match_any(5, TOKEN_FOR, TOKEN_IF,
-                      TOKEN_WHILE, TOKEN_RETURN, TOKEN_SEMICOLON)) {
+        if (match_any(4, TOKEN_FOR, TOKEN_IF, TOKEN_WHILE, TOKEN_RETURN)
+           //|| match(TOKEN_SEMICOLON)
+           //|| match(TOKEN_IDENTIFIER)
+            ) {
             return;
         }
         consume();
@@ -167,6 +169,7 @@ static ast_node_t* parse_factor() {
             && sym_lookup(global_scope, ident->as.ident.value) == NULL ) {
             //fprintf(stderr, "'%s' undeclared\n", node_ident->as.ident.value);
             error_at(token, "undeclared");
+            //synchronize();
             sym_error = true;
         }
 
@@ -269,6 +272,7 @@ static ast_node_t* parse_assign() {
         && sym_lookup(global_scope, node_ident->as.ident.value) == NULL ) {
         //fprintf(stderr, "'%s' undeclared\n", node_ident->as.ident.value);
         error_at(token, "undeclared");
+        //synchronize();
         sym_error = true;
     }
     return node_assign;
