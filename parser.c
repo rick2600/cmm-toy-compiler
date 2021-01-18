@@ -144,7 +144,6 @@ static void synchronize_global() {
     }
 }
 
-
 static void check_use_before_decl(ast_node_t* ident) {
     char* sym = ident->as.ident.value;
 
@@ -160,7 +159,6 @@ static void check_use_before_decl(ast_node_t* ident) {
 
     parser.had_error = true;
 }
-
 
 static ast_node_t* parse_funccall(ast_node_t* ident) {
     match(TOKEN_LEFT_PAREN);
@@ -209,9 +207,6 @@ static ast_node_t* parse_assign() {
     return node_assign;
 }
 
-
-
-
 static ast_node_t* parse_factor() {
     //printf("parse_factor> "); debug_token(peek(0));
 
@@ -246,7 +241,6 @@ static ast_node_t* parse_factor() {
     }
     return node;
 }
-
 
 static ast_node_t* parse_term() {
     ast_node_t* node = parse_factor();
@@ -369,7 +363,6 @@ static void parse_brace_stmt(ast_node_t* parent) {
     }
     match(TOKEN_RIGHT_BRACE);
 }
-
 
 static void parse_ident_stmt(ast_node_t* parent) {
     if (peek(1)->type == TOKEN_LEFT_PAREN) {
@@ -531,7 +524,6 @@ static void lock_sym_table(ast_node_t* node) {
     entry->as.func.sym_table->accepts_new_var = false;
 }
 
-
 static void begin_parse_funcdecl(ast_node_t* parent, token_t* token_type) {
     if (parser.panic_mode) return;
     ast_node_t* node = parse_funcdecl(parent, token_type);
@@ -643,7 +635,6 @@ static void init_parser() {
     parser.cur_sym_table = NULL;
 }
 
-
 ast_node_t* parse(char *buffer) {
     init_parser();
     parser.token_stream = get_tokens(buffer);
@@ -661,4 +652,3 @@ ast_node_t* parse(char *buffer) {
 
     return ast;
 }
-
