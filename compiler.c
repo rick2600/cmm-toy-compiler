@@ -53,6 +53,7 @@ static void show_tokens(token_stream_t* token_stream) {
     for (int i = 0; i < token_stream->count; i++) {
         debug_token(&token_stream->tokens[i]);
     }
+    printf("\n");
 }
 
 void compile(opts_t* opts) {

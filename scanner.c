@@ -124,7 +124,7 @@ static token_t* character() {
 
     if (peek() == '\'') {
         advance();
-        token_t* token = make_token(TOKEN_CHAR);
+        token_t* token = make_token(TOKEN_CHARCONST);
         token->start++;
         token->length -= 2;
         return token;
@@ -283,6 +283,7 @@ char* token_type_str(token_type_t type) {
         case TOKEN_NUMBER: return "number";
         case TOKEN_VOID: return "void";
         case TOKEN_CHAR: return "char";
+        case TOKEN_CHARCONST: return "character";
         case TOKEN_INT: return "int";
         case TOKEN_EXTERN: return "extern";
         case TOKEN_IF: return "if";
@@ -325,6 +326,7 @@ char *stringify_token_type(token_type_t type) {
         case TOKEN_NUMBER: return "TOKEN_NUMBER";
         case TOKEN_VOID: return "TOKEN_VOID";
         case TOKEN_CHAR: return "TOKEN_CHAR";
+        case TOKEN_CHARCONST: return "TOKEN_CHARCONST";
         case TOKEN_INT: return "TOKEN_INT";
         case TOKEN_EXTERN: return "TOKEN_EXTERN";
         case TOKEN_IF: return "TOKEN_IF";

@@ -256,6 +256,7 @@ static int do_evaluate_ast(ast_node_t* node) {
 
 void show_ast(ast_node_t *node) {
     do_show_ast("", node, 0);
+    printf("\n");
     //printf("result: %d\n", do_evaluate_ast(node));
 }
 

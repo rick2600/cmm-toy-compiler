@@ -221,13 +221,13 @@ static char* type_to_typestr(decl_type_t type) {
 static void show_only(sym_entry_t* entry) {
     char fmtstr[512];
     if (entry->type == SYM_VAR) {
-        printf("    sym type: var  | decl type: %-4s%s | sym: %-20s\n",
+        printf("    variable | type: %-4s%s | sym: %-20s\n",
             type_to_typestr(entry->as.var.type),
             entry->as.var.is_array ? "[]":"  ",
             entry->sym);
 
     } else if (entry->type == SYM_FUNC) {
-        printf("    sym type: func | decl type: %-4s   | sym: %-20s | n_params: %d\n",
+        printf("    function | type: %-4s   | sym: %-20s | n_params: %d\n",
             type_to_typestr(entry->as.func.type),
             entry->sym,
             entry->as.func.n_params);
@@ -249,9 +249,9 @@ static void do_show_sym_table(sym_table_t* scope) {
             sym_entry_t* entry = scope->entries[i];
             while (entry) {
                 if (entry->type == SYM_FUNC) {
-                    printf("\nSYM TABLE SCOPE: %s\n", entry->sym);
+                    printf("\nSymbol table - scope: %s\n", entry->sym);
                     do_show_sym_table(entry->as.func.sym_table);
-                    puts("--------------------------------------------------");
+                    puts("--------------------------------------------------------------------------------");
                 }
                 entry = entry->next;
             }
@@ -260,6 +260,7 @@ static void do_show_sym_table(sym_table_t* scope) {
 }
 
 void show_sym_table(sym_table_t* scope) {
-    printf("SYM TABLE SCOPE: global\n");
+    printf("Symbol table - scope: <global>\n");
     do_show_sym_table(scope);
+    printf("\n");
 }
