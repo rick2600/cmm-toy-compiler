@@ -128,8 +128,6 @@ bool insert_sym_from_funcdecl_prototype_node(sym_table_t* scope, ast_node_t *nod
     char* sym =  ident->as.ident.value;
     sym_entry_t* entry = sym_lookup(scope, sym);
 
-    printf("[%s]\n", sym);
-
     if (entry == NULL) {
         sym_entry_t* entry = create_sym_entry(sym, SYM_FUNC);
         entry->line = ident->line;
@@ -158,17 +156,15 @@ bool insert_sym_from_funcdecl_prototype_node(sym_table_t* scope, ast_node_t *nod
         }
         return true;
     } else {
-        /*
-        if (!defining_a_declaration) {
+        printf("defining_a_declaration=%d %s\n", defining_a_declaration, sym);
+        asm("int3");
+        if (defining_a_declaration) {
+            return true;
+        } else {
             fprintf(stderr, "Line: %d: error: previous declaration of \"%s\" at line %d\n",
                 node->line, sym, entry->line);
             return false;
         }
-        return true;
-        */
-       fprintf(stderr, "Line: %d: error: previous declaration of \"%s\" at line %d\n",
-                node->line, sym, entry->line);
-            return false;
     }
 }
 
@@ -180,18 +176,22 @@ bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
         insert_sym_from_funcdecl_prototype_node(scope, node);
         entry = sym_lookup(scope, sym);
         entry->as.func.defined = true;
+        defining_a_declaration = false;
         return true;
     } else {
         if (entry->as.func.defined) {
             fprintf(stderr, "Line: %d: error: previous definition of \"%s\" at line %d\n",
                 node->line, sym, entry->line);
+            defining_a_declaration = false;
             return false;
         } else {
             if (prev_funcdecl_match(scope, entry, node)) {
                 entry->as.func.defined = true;
                 entry->line = node->line;
+                defining_a_declaration = false;
                 return true;
             } else {
+                defining_a_declaration = false;
                 fprintf(stderr,
                         "Line: %d: error: conflicting with previous declaration of \"%s\" at line %d\n",
                     node->line, sym, entry->line);
@@ -199,7 +199,6 @@ bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
             }
         }
     }
-    defining_a_declaration = false;
 }
 
 /*

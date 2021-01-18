@@ -501,9 +501,7 @@ static ast_node_t* parse_funcdecl(ast_node_t* parent, token_t* token_type) {
         node->as.funcdecl.params = params;
         match(TOKEN_RIGHT_PAREN);
         add_stmt(parent, node);
-        if (!insert_sym_from_funcdecl_prototype_node(parser.global_sym_table, node)) {
-            parser.had_error = true;
-        }
+
         return node;
         // TODO: add symbol
     }
@@ -531,8 +529,14 @@ static void begin_parse_funcdecl(ast_node_t* parent, token_t* token_type) {
         return;
 
     if (is_next_token(TOKEN_COMMA)) {
+        if (!insert_sym_from_funcdecl_prototype_node(parser.global_sym_table, node)) {
+            parser.had_error = true;
+        }
         while (match(TOKEN_COMMA)) {
-            parse_funcdecl(parent, token_type);
+            node = parse_funcdecl(parent, token_type);
+            if (!insert_sym_from_funcdecl_prototype_node(parser.global_sym_table, node)) {
+                parser.had_error = true;
+            }
         }
         match(TOKEN_SEMICOLON);
     } else if (is_next_token(TOKEN_LEFT_BRACE)) {
@@ -556,6 +560,9 @@ static void begin_parse_funcdecl(ast_node_t* parent, token_t* token_type) {
 
         match(TOKEN_RIGHT_BRACE);
     } else if (is_next_token(TOKEN_SEMICOLON)) {
+        if (!insert_sym_from_funcdecl_prototype_node(parser.global_sym_table, node)) {
+            parser.had_error = true;
+        }
         match(TOKEN_SEMICOLON);
     } else {
         error_at(next_token(), "expected ';' or '{'");
