@@ -145,11 +145,28 @@ static void synchronize_global() {
 }
 
 
+static void check_use_before_decl(ast_node_t* ident) {
+    char* sym = ident->as.ident.value;
+
+    if (sym_lookup(parser.cur_sym_table, sym) != NULL)
+        return;
+
+    if (sym_lookup(parser.global_sym_table, sym) != NULL)
+        return;
+
+    fprintf(stderr,
+        "Line: %d: error: \"%s\" used before a declaration\n",
+        ident->line, sym);
+
+    parser.had_error = true;
+}
 
 
 static ast_node_t* parse_funccall(ast_node_t* ident) {
     match(TOKEN_LEFT_PAREN);
     ast_node_t* node = create_ast_node_funccall(ident);
+
+    check_use_before_decl(ident);
 
     if (!is_next_token(TOKEN_RIGHT_PAREN)) {
         add_param(node->as.funccall.params, parse_expr());
@@ -178,6 +195,8 @@ static ast_node_t* parse_assign() {
         token_t* token_ident = last_token();
         ast_node_t* node_ident = create_ast_node_ident(token_ident);
 
+        check_use_before_decl(node_ident);
+
         if (is_next_token(TOKEN_LEFT_BRACKET)) {
             ast_node_t* arrayaccess = parse_arrayaccess(node_ident);
             match(TOKEN_EQUAL);
@@ -199,6 +218,9 @@ static ast_node_t* parse_factor() {
     ast_node_t* node = NULL;
     if (is_next_token(TOKEN_IDENT)) {
         ast_node_t* ident = create_ast_node_ident(next_token());
+
+        check_use_before_decl(ident);
+
         if (is_next_token(TOKEN_LEFT_PAREN)) {
             node = parse_funccall(ident);
         } else if (is_next_token(TOKEN_LEFT_BRACKET)) {
@@ -495,6 +517,21 @@ static ast_node_t* parse_funcdecl(ast_node_t* parent, token_t* token_type) {
     return NULL; // TODO: return a func anyway?
 }
 
+static void set_sym_scope_to_func(ast_node_t* node) {
+    sym_entry_t* entry = sym_lookup(parser.global_sym_table,
+            node->as.funcdecl.ident->as.ident.value);
+
+    parser.cur_sym_table = entry->as.func.sym_table;
+}
+
+// Do not allow any var for this symbol anymore.
+static void lock_sym_table(ast_node_t* node) {
+    sym_entry_t* entry = sym_lookup(parser.global_sym_table,
+            node->as.funcdecl.ident->as.ident.value);
+    entry->as.func.sym_table->accepts_new_var = false;
+}
+
+
 static void begin_parse_funcdecl(ast_node_t* parent, token_t* token_type) {
     if (parser.panic_mode) return;
     ast_node_t* node = parse_funcdecl(parent, token_type);
@@ -511,6 +548,8 @@ static void begin_parse_funcdecl(ast_node_t* parent, token_t* token_type) {
             parser.had_error = true;
         }
 
+        set_sym_scope_to_func(node);
+
         match(TOKEN_LEFT_BRACE);
 
         while (is_next_token_any(2, TOKEN_INT, TOKEN_CHAR)) {
@@ -520,6 +559,8 @@ static void begin_parse_funcdecl(ast_node_t* parent, token_t* token_type) {
         while (!is_next_token(TOKEN_RIGHT_BRACE) && !is_next_token(TOKEN_EOF)) {
             parse_stmt(node->as.funcdecl.stmts);
         }
+
+        lock_sym_table(node);
 
         match(TOKEN_RIGHT_BRACE);
     } else if (is_next_token(TOKEN_SEMICOLON)) {

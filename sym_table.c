@@ -183,7 +183,6 @@ bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
             if (prev_funcdecl_match(scope, entry, node)) {
                 entry->as.func.defined = true;
                 entry->line = node->line;
-                entry->as.func.sym_table->accepts_new_var = false;
                 return true;
             } else {
                 fprintf(stderr,
