@@ -41,5 +41,6 @@ static char* read_file(const char* path) {
 void compile(const char* filename) {
     char* buffer = read_file(filename);
     ast_node_t* ast = parse(buffer);
+    free(buffer);
     //if (ast != NULL) visit_ast(ast);
 }

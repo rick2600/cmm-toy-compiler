@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include "token.h"
 
+#define CAPACITY_STEP 32
+
 typedef struct {
     const char* start;
     const char* current;

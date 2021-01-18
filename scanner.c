@@ -6,8 +6,6 @@
 #include "token.h"
 #include "scanner.h"
 
-#define CAPACITY_STEP 64
-
 scanner_t scanner;
 token_stream_t token_stream;
 
