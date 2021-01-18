@@ -79,8 +79,5 @@ void compile(opts_t* opts) {
             show_ast(parser->ast);
         }
     }
-
-
     free(buffer);
-
 }

@@ -191,7 +191,6 @@ static void do_show_ast(char *field, ast_node_t* node, int level) {
         do_show_ast("expr", node->as.arrayaccess.expr, level + LEVEL_STEP);
     }
     else if (node->type == NODE_PARAMDECL) {
-
         sprintf(str+level, "%s: %s type: %s %s",
                 field,
                 node_type_to_str(node->type),
@@ -252,8 +251,6 @@ static int do_evaluate_ast(ast_node_t* node) {
     }
     return 0;
 }
-
-
 
 void show_ast(ast_node_t *node) {
     do_show_ast("", node, 0);
