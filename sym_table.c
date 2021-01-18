@@ -158,12 +158,17 @@ bool insert_sym_from_funcdecl_prototype_node(sym_table_t* scope, ast_node_t *nod
         }
         return true;
     } else {
+        /*
         if (!defining_a_declaration) {
             fprintf(stderr, "Line: %d: error: previous declaration of \"%s\" at line %d\n",
                 node->line, sym, entry->line);
             return false;
         }
         return true;
+        */
+       fprintf(stderr, "Line: %d: error: previous declaration of \"%s\" at line %d\n",
+                node->line, sym, entry->line);
+            return false;
     }
 }
 
