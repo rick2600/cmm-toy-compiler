@@ -128,6 +128,8 @@ bool insert_sym_from_funcdecl_prototype_node(sym_table_t* scope, ast_node_t *nod
     char* sym =  ident->as.ident.value;
     sym_entry_t* entry = sym_lookup(scope, sym);
 
+    printf("[%s]\n", sym);
+
     if (entry == NULL) {
         sym_entry_t* entry = create_sym_entry(sym, SYM_FUNC);
         entry->line = ident->line;
