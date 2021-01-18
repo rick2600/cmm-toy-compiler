@@ -414,7 +414,10 @@ static void parse_vardecls_for_func(ast_node_t* func_node, ast_node_t* parent) {
             sym_entry_t* entry = sym_lookup(parser.global_sym_table,
                 func_node->as.funcdecl.ident->as.ident.value);
 
-            insert_sym_from_vardecl_node(entry->as.func.sym_table, node);
+
+            if (!insert_sym_from_vardecl_node(entry->as.func.sym_table, node)) {
+                parser.had_error = true;
+            }
 
             add_stmt(parent, node);
         }
@@ -483,7 +486,9 @@ static ast_node_t* parse_funcdecl(ast_node_t* parent, token_t* token_type) {
         node->as.funcdecl.params = params;
         match(TOKEN_RIGHT_PAREN);
         add_stmt(parent, node);
-        insert_sym_from_funcdecl_prototype_node(parser.global_sym_table, node);
+        if (!insert_sym_from_funcdecl_prototype_node(parser.global_sym_table, node)) {
+            parser.had_error = true;
+        }
         return node;
         // TODO: add symbol
     }
@@ -502,7 +507,10 @@ static void begin_parse_funcdecl(ast_node_t* parent, token_t* token_type) {
         }
         match(TOKEN_SEMICOLON);
     } else if (is_next_token(TOKEN_LEFT_BRACE)) {
-        insert_sym_from_funcdef_node(parser.global_sym_table, node);
+        if (!insert_sym_from_funcdef_node(parser.global_sym_table, node)) {
+            parser.had_error = true;
+        }
+
         match(TOKEN_LEFT_BRACE);
 
         while (is_next_token_any(2, TOKEN_INT, TOKEN_CHAR)) {
@@ -543,7 +551,9 @@ static void parse_vardecls(ast_node_t* parent, token_t* token_type) {
             type, ident, is_array, array_size);
 
         add_stmt(parent, node);
-        insert_sym_from_vardecl_node(parser.global_sym_table, node);
+        if (!insert_sym_from_vardecl_node(parser.global_sym_table, node)) {
+            parser.had_error = true;
+        }
     }
 }
 
@@ -603,9 +613,9 @@ ast_node_t* parse(char *buffer) {
         parse_func_or_decl(ast->as.root.stmts);
     }
 
-    show_sym_table(parser.global_sym_table);
+    //show_sym_table(parser.global_sym_table);
 
-    //if (parser.had_error)
+    if (parser.had_error)
         return NULL;
 
     return ast;

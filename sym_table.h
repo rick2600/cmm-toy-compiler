@@ -37,6 +37,7 @@ typedef struct sym_entry {
 
 typedef struct _sym_table {
     struct _sym_table* parent;
+    bool accepts_new_var;
     sym_entry_t* entries[MAX_ENTRIES];
 } sym_table_t;
 

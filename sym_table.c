@@ -6,6 +6,7 @@
 #include "sym_table.h"
 #include "ast.h"
 
+bool defining_a_declaration;
 
 static uint32_t hash(char *str) {
     uint32_t hash = 5381;
@@ -45,10 +46,15 @@ sym_table_t* create_sym_table(sym_table_t* parent) {
     }
     memset(sym_table, 0, sizeof(sym_table_t));
     sym_table->parent = parent;
+    sym_table->accepts_new_var = true;
     return sym_table;
 }
 
 bool insert_sym_from_vardecl_node(sym_table_t* scope, ast_node_t* node) {
+
+    if (!scope->accepts_new_var)
+        return true;
+
     ast_node_t* ident = node->as.vardecl.ident;
     char* sym =  ident->as.ident.value;
     sym_entry_t* entry = sym_lookup(scope, sym);
@@ -150,13 +156,17 @@ bool insert_sym_from_funcdecl_prototype_node(sym_table_t* scope, ast_node_t *nod
         }
         return true;
     } else {
-        fprintf(stderr, "Line: %d: error: previous declaration of \"%s\" at line %d\n",
+        if (!defining_a_declaration) {
+            fprintf(stderr, "Line: %d: error: previous declaration of \"%s\" at line %d\n",
                 node->line, sym, entry->line);
-        return false;
+            return false;
+        }
+        return true;
     }
 }
 
 bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
+    defining_a_declaration = true;
     char *sym = node->as.funcdecl.ident->as.ident.value;
     sym_entry_t* entry = sym_lookup(scope, sym);
     if (entry == NULL) {
@@ -167,12 +177,13 @@ bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
     } else {
         if (entry->as.func.defined) {
             fprintf(stderr, "Line: %d: error: previous definition of \"%s\" at line %d\n",
-                    node->line, sym, entry->line);
+                node->line, sym, entry->line);
             return false;
         } else {
             if (prev_funcdecl_match(scope, entry, node)) {
                 entry->as.func.defined = true;
                 entry->line = node->line;
+                entry->as.func.sym_table->accepts_new_var = false;
                 return true;
             } else {
                 fprintf(stderr,
@@ -182,6 +193,7 @@ bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
             }
         }
     }
+    defining_a_declaration = false;
 }
 
 /*
