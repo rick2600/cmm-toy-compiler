@@ -7,7 +7,7 @@
 #include "scanner.h"
 #include "ast.h"
 #include "sym_table.h"
-#include "ast_visitor.h"
+#include "ast_show.h"
 
 
 parser_t parser;
@@ -26,23 +26,22 @@ static token_t* peek(uint32_t dist) {
     else
         return &parser.token_stream->tokens[parser.cur_position + dist];
 }
-
+/*
 static void debug_token(token_t* token) {
-    printf("[%-18s]  '%.*s'\n",
+    printf("[%d: %-18s]  '%.*s'\n",
+        token->line,
         stringify_token_type(token->type),
         token->length, token->start
     );
 }
 
-static void show_tokens() {
-    int current = 0;
-    for (;;) {
-        if (peek(current)->type == TOKEN_EOF) break;
-        debug_token(peek(current));
-        current++;
+static void show_tokens(token_stream_t* token_stream) {
+    for (int i = 0; i < token_stream->count; i++) {
+        debug_token(&token_stream->tokens[i]);
     }
     printf("\n\n");
 }
+*/
 
 static void advance() {
     if (parser.cur_position < parser.token_stream->count)
@@ -642,20 +641,13 @@ static void init_parser() {
     parser.cur_sym_table = NULL;
 }
 
-ast_node_t* parse(char *buffer) {
+parser_t* parse(char *buffer) {
     init_parser();
     parser.token_stream = get_tokens(buffer);
-    //show_tokens();
-    ast_node_t* ast = create_ast_node_root();
+    parser.ast = create_ast_node_root();
 
     while (!is_next_token(TOKEN_EOF)) {
-        parse_func_or_decl(ast->as.root.stmts);
+        parse_func_or_decl(parser.ast->as.root.stmts);
     }
-
-    //show_sym_table(parser.global_sym_table);
-
-    if (parser.had_error)
-        return NULL;
-
-    return ast;
+    return &parser;
 }

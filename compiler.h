@@ -1,6 +1,8 @@
 #ifndef cmm_compiler_h
 #define cmm_compiler_h
 
-void compile(const char* filename);
+#include "opt_parser.h"
+
+void compile(opts_t* opts);
 
 #endif

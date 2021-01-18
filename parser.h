@@ -12,8 +12,9 @@ typedef struct {
     bool had_error;
     sym_table_t* global_sym_table;
     sym_table_t* cur_sym_table;
+    ast_node_t* ast;
 } parser_t;
 
-ast_node_t* parse(char *buffer);
+parser_t* parse(char *buffer);
 
 #endif

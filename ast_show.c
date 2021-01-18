@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "ast_visitor.h"
+#include "ast_show.h"
 
 #define LEVEL_STEP 2
 
@@ -59,7 +59,7 @@ static char* op_to_str(op_t op) {
     }
 }
 
-static void do_visit_ast(char *field, ast_node_t* node, int level) {
+static void do_show_ast(char *field, ast_node_t* node, int level) {
     // FIXME: I know there's a overflow here :P
     char str[1024];
 
@@ -74,20 +74,20 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
         //sprintf(str+level, "root: %s", node_type_to_str(node->type));
         //printf("Line: %d -> %s\n", node->line, str);
         printf("root:\n");
-        do_visit_ast("stmts", node->as.root.stmts, level + LEVEL_STEP);
+        do_show_ast("stmts", node->as.root.stmts, level + LEVEL_STEP);
     }
     else if (node->type == NODE_BINOP) {
         sprintf(str+level, "%s: %s op: %s",
             field, node_type_to_str(node->type), op_to_str(node->as.binary.op));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("left", node->as.binary.left, level + LEVEL_STEP);
-        do_visit_ast("right", node->as.binary.right, level + LEVEL_STEP);
+        do_show_ast("left", node->as.binary.left, level + LEVEL_STEP);
+        do_show_ast("right", node->as.binary.right, level + LEVEL_STEP);
     }
     else if (node->type == NODE_UNARYOP) {
         sprintf(str+level, "%s: %s op: %s",
             field, node_type_to_str(node->type), op_to_str(node->as.unary.op));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("expr", node->as.unary.expr, level + LEVEL_STEP);
+        do_show_ast("expr", node->as.unary.expr, level + LEVEL_STEP);
     }
     else if (node->type == NODE_INT) {
         sprintf(str+level, "%s: %s value: %d",
@@ -112,15 +112,15 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
     else if (node->type == NODE_FUNCCALL) {
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("ident", node->as.funccall.ident, level + LEVEL_STEP);
-        do_visit_ast("params", node->as.funccall.params, level + LEVEL_STEP);
+        do_show_ast("ident", node->as.funccall.ident, level + LEVEL_STEP);
+        do_show_ast("params", node->as.funccall.params, level + LEVEL_STEP);
     }
     else if (node->type == NODE_PARAM_LIST) {
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
         ast_node_t* param = node->as.paramslist.list->head;
         while (param) {
-            do_visit_ast("param", param, level + LEVEL_STEP);
+            do_show_ast("param", param, level + LEVEL_STEP);
             param = param->next;
         }
     }
@@ -130,43 +130,43 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
         printf("Line: %d -> %s\n", node->line, str);
         ast_node_t* param = node->as.paramsdecllist.list->head;
         while (param) {
-            do_visit_ast("param", param, level + LEVEL_STEP);
+            do_show_ast("param", param, level + LEVEL_STEP);
             param = param->next;
         }
     }
     else if (node->type == NODE_IF) {
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("cond", node->as.ifstmt.cond, level + LEVEL_STEP);
-        do_visit_ast("_if", node->as.ifstmt._if, level + LEVEL_STEP);
-        do_visit_ast("_else", node->as.ifstmt._else, level + LEVEL_STEP);
+        do_show_ast("cond", node->as.ifstmt.cond, level + LEVEL_STEP);
+        do_show_ast("_if", node->as.ifstmt._if, level + LEVEL_STEP);
+        do_show_ast("_else", node->as.ifstmt._else, level + LEVEL_STEP);
     }
     else if (node->type == NODE_WHILE) {
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("cond", node->as.whilestmt.cond, level + LEVEL_STEP);
-        do_visit_ast("stmts", node->as.whilestmt.stmts, level + LEVEL_STEP);
+        do_show_ast("cond", node->as.whilestmt.cond, level + LEVEL_STEP);
+        do_show_ast("stmts", node->as.whilestmt.stmts, level + LEVEL_STEP);
     }
     else if (node->type == NODE_FOR) {
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("init", node->as.forstmt.init, level + LEVEL_STEP);
-        do_visit_ast("cond", node->as.forstmt.cond, level + LEVEL_STEP);
-        do_visit_ast("incr", node->as.forstmt.incr, level + LEVEL_STEP);
-        do_visit_ast("stmts", node->as.forstmt.stmts, level + LEVEL_STEP);
+        do_show_ast("init", node->as.forstmt.init, level + LEVEL_STEP);
+        do_show_ast("cond", node->as.forstmt.cond, level + LEVEL_STEP);
+        do_show_ast("incr", node->as.forstmt.incr, level + LEVEL_STEP);
+        do_show_ast("stmts", node->as.forstmt.stmts, level + LEVEL_STEP);
     }
     else if (node->type == NODE_FUNCDECL) {
         sprintf(str+level, "%s: %s type: %s", field, node_type_to_str(node->type),
             decltype_to_str(node->as.funcdecl.type));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("ident", node->as.funcdecl.ident, level + LEVEL_STEP);
-        do_visit_ast("params", node->as.funcdecl.params, level + LEVEL_STEP);
-        do_visit_ast("stmts", node->as.funcdecl.stmts, level + LEVEL_STEP);
+        do_show_ast("ident", node->as.funcdecl.ident, level + LEVEL_STEP);
+        do_show_ast("params", node->as.funcdecl.params, level + LEVEL_STEP);
+        do_show_ast("stmts", node->as.funcdecl.stmts, level + LEVEL_STEP);
     }
     else if (node->type == NODE_RETURN) {
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("expr", node->as._return.expr, level + LEVEL_STEP);
+        do_show_ast("expr", node->as._return.expr, level + LEVEL_STEP);
     }
     else if (node->type == NODE_STMTSLIST) {
         if (node->as.stmtslist.list->head == NULL) return;
@@ -174,21 +174,21 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
         printf("Line: %d -> %s\n", node->line, str);
         ast_node_t* stmt = node->as.stmtslist.list->head;
         while (stmt) {
-            do_visit_ast("stmt", stmt, level + LEVEL_STEP);
+            do_show_ast("stmt", stmt, level + LEVEL_STEP);
             stmt = stmt->next;
         }
     }
     else if (node->type == NODE_ASSIGN) {
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("left", node->as.assign.left, level + LEVEL_STEP);
-        do_visit_ast("right", node->as.assign.right, level + LEVEL_STEP);
+        do_show_ast("left", node->as.assign.left, level + LEVEL_STEP);
+        do_show_ast("right", node->as.assign.right, level + LEVEL_STEP);
     }
     else if (node->type == NODE_ARRAYACCESS) {
         sprintf(str+level, "%s: %s", field, node_type_to_str(node->type));
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("ident", node->as.arrayaccess.ident, level + LEVEL_STEP);
-        do_visit_ast("expr", node->as.arrayaccess.expr, level + LEVEL_STEP);
+        do_show_ast("ident", node->as.arrayaccess.ident, level + LEVEL_STEP);
+        do_show_ast("expr", node->as.arrayaccess.expr, level + LEVEL_STEP);
     }
     else if (node->type == NODE_PARAMDECL) {
 
@@ -199,7 +199,7 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
                 node->as.paramdecl.is_array ? "[]":""
                );
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("ident", node->as.paramdecl.ident, level + LEVEL_STEP);
+        do_show_ast("ident", node->as.paramdecl.ident, level + LEVEL_STEP);
     }
     else if (node->type == NODE_VARDECL) {
         char s[64];
@@ -212,7 +212,7 @@ static void do_visit_ast(char *field, ast_node_t* node, int level) {
                 node->as.vardecl.is_array ? s : ""
                );
         printf("Line: %d -> %s\n", node->line, str);
-        do_visit_ast("ident", node->as.vardecl.ident, level + LEVEL_STEP);
+        do_show_ast("ident", node->as.vardecl.ident, level + LEVEL_STEP);
     }
 
 }
@@ -254,8 +254,8 @@ static int do_evaluate_ast(ast_node_t* node) {
 
 
 
-void visit_ast(ast_node_t *node) {
-    do_visit_ast("", node, 0);
+void show_ast(ast_node_t *node) {
+    do_show_ast("", node, 0);
     //printf("result: %d\n", do_evaluate_ast(node));
 }
 

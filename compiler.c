@@ -3,8 +3,11 @@
 #include "compiler.h"
 #include "scanner.h"
 #include "parser.h"
+#include "token.h"
 #include "ast.h"
-#include "ast_visitor.h"
+#include "ast_show.h"
+#include "opt_parser.h"
+
 
 static size_t get_file_size(FILE* fp) {
     fseek(fp, 0L, SEEK_END);
@@ -38,9 +41,39 @@ static char* read_file(const char* path) {
     return buffer;
 }
 
-void compile(const char* filename) {
-    char* buffer = read_file(filename);
-    ast_node_t* ast = parse(buffer);
+static void debug_token(token_t* token) {
+    printf("[%d: %-18s]  '%.*s'\n",
+        token->line,
+        stringify_token_type(token->type),
+        token->length, token->start
+    );
+}
+
+static void show_tokens(token_stream_t* token_stream) {
+    for (int i = 0; i < token_stream->count; i++) {
+        debug_token(&token_stream->tokens[i]);
+    }
+}
+
+void compile(opts_t* opts) {
+
+    if (opts->filename == NULL) {
+        fprintf(stderr, "No source file passed!");
+        exit(EXIT_FAILURE);
+    }
+
+    char* buffer = read_file(opts->filename);
+    parser_t* parser = parse(buffer);
+
+    if (parser->token_stream != NULL && opts->tokens)
+        show_tokens(parser->token_stream);
+
+    if (parser->global_sym_table != NULL && opts->symbols)
+        show_sym_table(parser->global_sym_table);
+
+    if (parser->ast != NULL && opts->ast)
+        show_ast(parser->ast);
+
     free(buffer);
-    //if (ast != NULL) visit_ast(ast);
+
 }
