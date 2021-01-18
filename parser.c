@@ -15,11 +15,12 @@ parser_t parser;
 static void parse_stmt(ast_node_t* parent);
 static ast_node_t* parse_expr();
 
+/*
 static void fatal_error(const char* msg) {
     fprintf(stderr, "fatal error: %s\n", msg);
     exit(EXIT_FAILURE);
 }
-
+*/
 static token_t* peek(uint32_t dist) {
     if ((parser.cur_position + dist) >= parser.token_stream->count)
         return &parser.token_stream->tokens[parser.token_stream->count - 1];
@@ -51,8 +52,10 @@ static void advance() {
 static token_t* last_token() {
     if ((int32_t)parser.cur_position > 0)
         return &parser.token_stream->tokens[parser.cur_position - 1];
-    else
-        fatal_error("index error in last_token()");
+    else {
+        // EOF token.
+        return &parser.token_stream->tokens[parser.token_stream->count];
+    }
 }
 
 static token_t* next_token() {

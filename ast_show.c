@@ -250,6 +250,7 @@ static int do_evaluate_ast(ast_node_t* node) {
     else if (node->type == NODE_INT) {
         return node->as.number.value;
     }
+    return 0;
 }
 
 

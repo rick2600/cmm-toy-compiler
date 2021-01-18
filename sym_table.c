@@ -11,7 +11,8 @@ bool defining_a_declaration;
 static uint32_t hash(char *str) {
     uint32_t hash = 5381;
     int c;
-    while (c = *str++) hash = ((hash << 5) + hash) + c;
+    while ((c = *str++))
+        hash = ((hash << 5) + hash) + c;
     return hash;
 }
 
@@ -156,8 +157,6 @@ bool insert_sym_from_funcdecl_prototype_node(sym_table_t* scope, ast_node_t *nod
         }
         return true;
     } else {
-        printf("defining_a_declaration=%d %s\n", defining_a_declaration, sym);
-        asm("int3");
         if (defining_a_declaration) {
             return true;
         } else {
@@ -201,16 +200,6 @@ bool insert_sym_from_funcdef_node(sym_table_t* scope, ast_node_t *node) {
     }
 }
 
-/*
-bool insert_sym_from_funcdecl_node(sym_table_t* scope, ast_node_t *node, bool prototype) {
-    if (prototype) {
-        return insert_sym_from_funcdecl_prototype_node(scope, node);
-    } else {
-        return insert_sym_from_funcdef_node(scope, node);
-    }
-}
-*/
-
 static char* type_to_typestr(decl_type_t type) {
     if (type == TYPE_INT) return "int";
     else if (type == TYPE_CHAR) return "char";
@@ -219,7 +208,6 @@ static char* type_to_typestr(decl_type_t type) {
 }
 
 static void show_only(sym_entry_t* entry) {
-    char fmtstr[512];
     if (entry->type == SYM_VAR) {
         printf("    variable | type: %-4s%s | sym: %-20s\n",
             type_to_typestr(entry->as.var.type),

@@ -66,14 +66,20 @@ void compile(opts_t* opts) {
     char* buffer = read_file(opts->filename);
     parser_t* parser = parse(buffer);
 
-    if (parser->token_stream != NULL && opts->tokens)
+    if (opts->tokens && parser->token_stream != NULL)
         show_tokens(parser->token_stream);
 
-    if (parser->global_sym_table != NULL && opts->symbols)
+    if (opts->symbols && parser->global_sym_table != NULL)
         show_sym_table(parser->global_sym_table);
 
-    if (parser->ast != NULL && opts->ast)
-        show_ast(parser->ast);
+    if (opts->ast) {
+        if (parser->ast == NULL || parser->had_error) {
+            printf("An error occured - AST not generated!\n");
+        } else {
+            show_ast(parser->ast);
+        }
+    }
+
 
     free(buffer);
 
