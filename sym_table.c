@@ -237,9 +237,10 @@ static void do_show_sym_table(sym_table_t* scope) {
             sym_entry_t* entry = scope->entries[i];
             while (entry) {
                 if (entry->type == SYM_FUNC) {
-                    printf("\nSymbol table - scope: %s\n", entry->sym);
-                    do_show_sym_table(entry->as.func.sym_table);
                     puts("--------------------------------------------------------------------------------");
+                    printf("Scope: %s\n", entry->sym);
+                    do_show_sym_table(entry->as.func.sym_table);
+
                 }
                 entry = entry->next;
             }
@@ -248,7 +249,8 @@ static void do_show_sym_table(sym_table_t* scope) {
 }
 
 void show_sym_table(sym_table_t* scope) {
-    printf("Symbol table - scope: <global>\n");
+    puts("================================= Symbol Table =================================");
+    puts("Scope: <global>");
     do_show_sym_table(scope);
-    printf("\n");
+    puts("================================================================================\n");
 }

@@ -214,7 +214,8 @@ static void do_show_ast(char *field, ast_node_t* node, int level) {
 }
 
 void show_ast(ast_node_t *node) {
+    puts("========================== Abstract Syntax Tree (AST) ==========================");
     do_show_ast("", node, 0);
-    printf("\n");
+    puts("================================================================================\n");
 }
 

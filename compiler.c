@@ -51,10 +51,12 @@ static void debug_token(token_t* token) {
 }
 
 static void show_tokens(token_stream_t* token_stream) {
+    puts("==================================== Tokens ====================================");
     for (int i = 0; i < token_stream->count; i++) {
         debug_token(&token_stream->tokens[i]);
     }
-    printf("\n");
+    puts("================================================================================\n");
+
 }
 
 void callback(ast_node_t* node) {
