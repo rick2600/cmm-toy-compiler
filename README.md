@@ -2,6 +2,9 @@
 
 A project to learn about compilers
 
+## Credits
+The scanner is an adaptation from the code in http://www.craftinginterpreters.com/contents.html
+
 ## Example of output:
 
 ./main --ast --token --symbols samples/c.cmm
