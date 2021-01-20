@@ -108,6 +108,7 @@ static void do_show_ast(char *field, ast_node_t* node, int level) {
         sprintf(dynamic_str, "%s: %s value: '%s'",
             field, node_type_to_str(node->type), node->as.ident.value);
         print_with_indent(node->line, dynamic_str, level);
+        free(dynamic_str);
     }
     else if (node->type == NODE_STRING) {
         size_t size = strlen(node->as.string.value) + 64;
@@ -119,6 +120,7 @@ static void do_show_ast(char *field, ast_node_t* node, int level) {
         sprintf(dynamic_str, "%s: %s value: \"%s\"",
             field, node_type_to_str(node->type), node->as.string.value);
         print_with_indent(node->line, dynamic_str, level);
+        free(dynamic_str);
     }
     else if (node->type == NODE_FUNCCALL) {
         sprintf(str, "%s: %s", field, node_type_to_str(node->type));
