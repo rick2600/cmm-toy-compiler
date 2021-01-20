@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "ast_show.h"
@@ -98,14 +99,26 @@ static void do_show_ast(char *field, ast_node_t* node, int level) {
         print_with_indent(node->line, str, level);
     }
     else if (node->type == NODE_IDENT) {
-        sprintf(str, "%s: %s value: '%s'",
+        size_t size = strlen(node->as.string.value) + 64;
+        char* dynamic_str = malloc(size * sizeof(char));
+        if (dynamic_str == NULL) {
+            fprintf(stderr, "Could not allocate memory for NODE_STRING\n");
+            exit(EXIT_FAILURE);
+        }
+        sprintf(dynamic_str, "%s: %s value: '%s'",
             field, node_type_to_str(node->type), node->as.ident.value);
-        print_with_indent(node->line, str, level);
+        print_with_indent(node->line, dynamic_str, level);
     }
     else if (node->type == NODE_STRING) {
-        sprintf(str, "%s: %s val: \"%s\"",
+        size_t size = strlen(node->as.string.value) + 64;
+        char* dynamic_str = malloc(size * sizeof(char));
+        if (dynamic_str == NULL) {
+            fprintf(stderr, "Could not allocate memory for NODE_STRING\n");
+            exit(EXIT_FAILURE);
+        }
+        sprintf(dynamic_str, "%s: %s value: \"%s\"",
             field, node_type_to_str(node->type), node->as.string.value);
-        print_with_indent(node->line, str, level);
+        print_with_indent(node->line, dynamic_str, level);
     }
     else if (node->type == NODE_FUNCCALL) {
         sprintf(str, "%s: %s", field, node_type_to_str(node->type));
