@@ -102,7 +102,7 @@ static void do_show_ast(char *field, ast_node_t* node, int level) {
         size_t size = strlen(node->as.string.value) + 64;
         char* dynamic_str = malloc(size * sizeof(char));
         if (dynamic_str == NULL) {
-            fprintf(stderr, "Could not allocate memory for NODE_STRING\n");
+            fprintf(stderr, "Could not allocate memory for NODE_IDENT\n");
             exit(EXIT_FAILURE);
         }
         sprintf(dynamic_str, "%s: %s value: '%s'",
