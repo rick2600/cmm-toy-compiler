@@ -275,7 +275,17 @@ void add_stmt(ast_node_t* parent, ast_node_t* child) {
     if (parent->as.stmtslist.list->head == NULL) {
         parent->as.stmtslist.list->head = child;
     } else {
-        parent->as.stmtslist.list->tail->next = child;
+        if ( parent->as.stmtslist.list->tail != NULL) {
+            parent->as.stmtslist.list->tail->next = child;
+        } else {
+            ast_node_t* stmt = parent->as.stmtslist.list->head;
+            while(stmt->next != NULL) {
+                stmt = stmt->next;
+            }
+            stmt->next = child;
+            parent->as.stmtslist.list->tail = child;
+
+        }
     }
     parent->as.stmtslist.list->tail = child;
     if (parent->line == 0) {

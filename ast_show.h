@@ -1,5 +1,5 @@
-#ifndef ast_show_h
-#define ast_show_h
+#ifndef cmm_ast_show_h
+#define cmm_ast_show_h
 
 #include "ast.h"
 

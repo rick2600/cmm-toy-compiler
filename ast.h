@@ -1,5 +1,5 @@
-#ifndef ast_h
-#define ast_h
+#ifndef cmm_ast_h
+#define cmm_ast_h
 
 #include <stdint.h>
 #include <stdbool.h>

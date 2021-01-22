@@ -8,6 +8,7 @@
 #include "ast_show.h"
 #include "opt_parser.h"
 #include "ast_visitor.h"
+#include "analyzer.h"
 
 
 static size_t get_file_size(FILE* fp) {
@@ -59,34 +60,6 @@ static void show_tokens(token_stream_t* token_stream) {
 
 }
 
-void callback(ast_node_t* node) {
-    char* type_str;
-    switch (node->type) {
-        case NODE_ROOT: type_str = "(root)"; break;
-        case NODE_BINOP: type_str = "(binop)"; break;
-        case NODE_UNARYOP: type_str = "(unaryop)"; break;
-        case NODE_INT: type_str = "(int)"; break;
-        case NODE_IDENT: type_str = "(ident)"; break;
-        case NODE_STRING: type_str = "(string)"; break;
-        case NODE_CHAR: type_str = "(char)"; break;
-        case NODE_FUNCCALL: type_str = "(funccall)"; break;
-        case NODE_FUNCDECL: type_str = "(funcdecl)"; break;
-        case NODE_PARAM_LIST: type_str = "(param_list)"; break;
-        case NODE_PARAMDECL: type_str = "(paramdecl)"; break;
-        case NODE_PARAMDECL_LIST: type_str = "(paramdecl_list)"; break;
-        case NODE_VARDECL: type_str = "(vardecl)"; break;
-        case NODE_IF: type_str = "(if)"; break;
-        case NODE_WHILE: type_str = "(while)"; break;
-        case NODE_FOR: type_str = "(for)"; break;
-        case NODE_RETURN: type_str = "(return)"; break;
-        case NODE_STMTSLIST: type_str = "(stmtslist)"; break;
-        case NODE_ASSIGN: type_str = "(assign)"; break;
-        case NODE_ARRAYACCESS: type_str = "(arrayaccess)"; break;
-        default: type_str = "(unknown)"; break;
-    }
-    printf("%s\n", type_str);
-}
-
 void compile(opts_t* opts) {
 
     if (opts->filename == NULL) {
@@ -103,6 +76,10 @@ void compile(opts_t* opts) {
     if (opts->symbols && parser->global_sym_table != NULL)
         show_sym_table(parser->global_sym_table);
 
+    if (has_semantic_errors(parser->ast, parser->global_sym_table)) {
+        parser->had_error = true;
+    }
+
     if (opts->ast) {
         if (parser->ast == NULL || parser->had_error) {
             printf("An error occured - AST not generated!\n");
@@ -110,8 +87,6 @@ void compile(opts_t* opts) {
             show_ast(parser->ast);
         }
     }
-
-    //visit_ast(parser->ast, callback);
 
     free(buffer);
 }
