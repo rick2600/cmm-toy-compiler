@@ -9,7 +9,6 @@
 #include "sym_table.h"
 #include "ast_show.h"
 
-
 parser_t parser;
 
 static void parse_stmt(ast_node_t* parent);
